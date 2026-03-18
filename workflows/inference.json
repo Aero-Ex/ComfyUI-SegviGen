@@ -1,0 +1,150 @@
+{
+  "1": {
+    "inputs": {
+      "repo_id": "microsoft/TRELLIS.2-4B"
+    },
+    "class_type": "SegviGenShapeEncoderLoader"
+  },
+  "2": {
+    "inputs": {
+      "repo_id": "microsoft/TRELLIS.2-4B"
+    },
+    "class_type": "SegviGenTexEncoderLoader"
+  },
+  "3": {
+    "inputs": {
+      "repo_id": "microsoft/TRELLIS.2-4B"
+    },
+    "class_type": "SegviGenShapeDecoderLoader"
+  },
+  "4": {
+    "inputs": {
+      "repo_id": "microsoft/TRELLIS.2-4B"
+    },
+    "class_type": "SegviGenTexDecoderLoader"
+  },
+  "5": {
+    "inputs": {
+      "repo_id": "microsoft/TRELLIS.2-4B"
+    },
+    "class_type": "SegviGenTrellisConfigLoader"
+  },
+  "6": {
+    "inputs": {
+      "mode": "full"
+    },
+    "class_type": "SegviGenCheckpointLoader"
+  },
+  "10": {
+    "inputs": {
+      "image": "example.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "11": {
+    "inputs": {
+      "image": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "SegviGenImagePreprocessor"
+  },
+  "12": {
+    "inputs": {
+      "image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "SegviGenImageToCond"
+  },
+  "20": {
+    "inputs": {
+      "glb_path": "input.glb",
+      "vxz_output_path": "temp.vxz"
+    },
+    "class_type": "SegviGenGLBToVXZ"
+  },
+  "21": {
+    "inputs": {
+      "vxz_path": [
+        "20",
+        0
+      ],
+      "shape_encoder": [
+        "1",
+        0
+      ],
+      "tex_encoder": [
+        "2",
+        0
+      ],
+      "shape_decoder": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "SegviGenVXZToSlat"
+  },
+  "30": {
+    "inputs": {
+      "flow_model": [
+        "6",
+        0
+      ],
+      "trellis_config": [
+        "5",
+        0
+      ],
+      "shape_slat": [
+        "21",
+        0
+      ],
+      "tex_slat": [
+        "21",
+        1
+      ],
+      "conditioning": [
+        "12",
+        0
+      ],
+      "steps": 50,
+      "guidance_strength": 7.5
+    },
+    "class_type": "SegviGenSampler"
+  },
+  "40": {
+    "inputs": {
+      "tex_slat": [
+        "30",
+        0
+      ],
+      "tex_decoder": [
+        "4",
+        0
+      ],
+      "subs": [
+        "21",
+        3
+      ]
+    },
+    "class_type": "SegviGenSlatToVoxel"
+  },
+  "50": {
+    "inputs": {
+      "meshes": [
+        "21",
+        2
+      ],
+      "tex_voxels": [
+        "40",
+        0
+      ],
+      "output_path": "segvigen_output.glb",
+      "resolution": 512
+    },
+    "class_type": "SegviGenVoxelToGLB"
+  }
+}
