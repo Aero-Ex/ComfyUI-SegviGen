@@ -1,4 +1,5 @@
 import importlib
+import torch
 
 __attributes = {
     # Sparse Structure
@@ -47,7 +48,8 @@ def from_pretrained(path: str, local_dir: str = None, **kwargs):
     """
     import os
     import json
-    from safetensors.torch import load_file
+    from accelerate import init_empty_weights
+    import comfy.utils
     
     config_file = None
     model_file = None
@@ -80,8 +82,12 @@ def from_pretrained(path: str, local_dir: str = None, **kwargs):
 
     with open(config_file, 'r') as f:
         config = json.load(f)
-    model = __getattr__(config['name'])(**config['args'], **kwargs)
-    model.load_state_dict(load_file(model_file), strict=False)
+    
+    with init_empty_weights():
+        model = __getattr__(config['name'])(**config['args'], **kwargs)
+    
+    sd = comfy.utils.load_torch_file(model_file, device=torch.device("cpu"))
+    model.load_state_dict(sd, strict=False)
 
     return model
 
