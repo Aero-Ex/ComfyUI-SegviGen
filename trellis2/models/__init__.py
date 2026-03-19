@@ -41,13 +41,14 @@ def __getattr__(name):
     return globals()[name]
 
 
-def from_pretrained(model_path: str, local_dir: str = None, **kwargs):
+def from_pretrained(model_path: str, local_dir: str = None, load_weights: bool = True, **kwargs):
     """
     Load a model from a pretrained checkpoint.
 
     Args:
         model_path: Full Hugging Face path, e.g., 'microsoft/TRELLIS.2-4B/ckpts/shape_enc'
         local_dir: Base directory for models (e.g., '/home/aero/comfy/ComfyUI/models/microsoft')
+        load_weights: Whether to load the model weights. Set to False if you plan to load a custom checkpoint immediately after.
         **kwargs: Additional arguments for the model constructor.
     """
     # Parse repo_id and the internal path
@@ -79,7 +80,7 @@ def from_pretrained(model_path: str, local_dir: str = None, **kwargs):
             config_file = potential_config
             print(f"Found local config at: {config_file}")
         
-        if os.path.exists(potential_model):
+        if os.path.exists(potential_model) and load_weights:
             model_file = potential_model
             print(f"Found local model at: {model_file}")
 
@@ -89,7 +90,7 @@ def from_pretrained(model_path: str, local_dir: str = None, **kwargs):
         print(f"Downloading config for {repo_id}: {filename}...")
         config_file = hf_hub_download(repo_id, filename, local_dir=local_dir)
 
-    if not model_file:
+    if load_weights and not model_file:
         filename = f"{subfolder}.safetensors" if subfolder else "model.safetensors"
         print(f"Downloading model weights for {repo_id}: {filename}...")
         model_file = hf_hub_download(repo_id, filename, local_dir=local_dir)
@@ -100,11 +101,13 @@ def from_pretrained(model_path: str, local_dir: str = None, **kwargs):
     
     model = __getattr__(config['name'])(**config['args'], **kwargs)
     
-    # Load state dict on CPU
-    sd = comfy.utils.load_torch_file(model_file, device=torch.device("cpu"))
-    model.load_state_dict(sd, strict=False)
+    if load_weights:
+        # Load state dict on CPU
+        sd = comfy.utils.load_torch_file(model_file, device=torch.device("cpu"))
+        model.load_state_dict(sd, strict=False)
 
     return model
+
 
 # For Pylance
 if __name__ == '__main__':

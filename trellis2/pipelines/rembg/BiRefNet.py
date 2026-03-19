@@ -6,11 +6,13 @@ from PIL import Image
 
 
 class BiRefNet(torch.nn.Module):
-    def __init__(self, model_name: str = "ZhengPeng7/BiRefNet", local_dir: str = None):
+    def __init__(self, model_name_or_path: str = "ZhengPeng7/BiRefNet"):
         super().__init__()
         self.model = AutoModelForImageSegmentation.from_pretrained(
-            model_name, trust_remote_code=True, local_dir=local_dir
+            model_name_or_path, trust_remote_code=True
         )
+
+
         self.model.eval()
         self.transform_image = transforms.Compose(
             [
@@ -22,7 +24,8 @@ class BiRefNet(torch.nn.Module):
         
     def __call__(self, image: Image.Image) -> Image.Image:
         image_size = image.size
-        input_images = self.transform_image(image).unsqueeze(0).to("cuda")
+        input_images = self.transform_image(image).unsqueeze(0).to(next(self.parameters()).device)
+
         # Prediction
         with torch.no_grad():
             preds = self.model(input_images)[-1].sigmoid().cpu()
@@ -31,3 +34,4 @@ class BiRefNet(torch.nn.Module):
         mask = pred_pil.resize(image_size)
         image.putalpha(mask)
         return image
+    

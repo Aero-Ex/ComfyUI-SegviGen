@@ -1,9 +1,9 @@
 # ComfyUI-SegviGen
 
-> [!WARNING]
-> This implementation is currently a **Work In Progress (WIP)** and is **not yet ready for general use**. Some nodes may experience breaking changes as the architecture is finalized.
+![Overview](assets/overview.png)
 
 A ComfyUI implementation of SegviGen, providing precise 3D texturing and interactive segmentation for TRELLIS 2.0.
+
 
 ## Installation
 

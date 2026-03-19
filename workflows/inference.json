@@ -1,234 +1,1032 @@
 {
-  "last_node_id": 60,
-  "last_link_id": 60,
+  "id": "7b0b9163-a3ba-4d7a-998a-9ff5fd74aaf6",
+  "revision": 0,
+  "last_node_id": 66,
+  "last_link_id": 70,
   "nodes": [
-    {
-      "id": 1,
-      "type": "SegviGenShapeEncoderLoader",
-      "pos": [10, 10],
-      "size": {"0": 315, "1": 58},
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "outputs": [{"name": "SHAPE_ENCODER", "type": "TRELLIS_SHAPE_ENCODER", "links": [210]}],
-      "inputs": [],
-      "properties": {"Node name for S&R": "SegviGenShapeEncoderLoader"}
-    },
-    {
-      "id": 2,
-      "type": "SegviGenTexEncoderLoader",
-      "pos": [10, 100],
-      "size": {"0": 315, "1": 58},
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "outputs": [{"name": "TEX_ENCODER", "type": "TRELLIS_TEX_ENCODER", "links": [211]}],
-      "inputs": [],
-      "properties": {"Node name for S&R": "SegviGenTexEncoderLoader"}
-    },
-    {
-      "id": 3,
-      "type": "SegviGenShapeDecoderLoader",
-      "pos": [10, 190],
-      "size": {"0": 315, "1": 58},
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "outputs": [{"name": "SHAPE_DECODER", "type": "TRELLIS_SHAPE_DECODER", "links": [212]}],
-      "inputs": [],
-      "properties": {"Node name for S&R": "SegviGenShapeDecoderLoader"}
-    },
     {
       "id": 5,
       "type": "SegviGenTrellisConfigLoader",
-      "pos": [10, 280],
-      "size": {"0": 315, "1": 58},
+      "pos": [
+        -85.95064947779224,
+        616.4613081126517
+      ],
+      "size": [
+        378,
+        107.43333435058594
+      ],
       "flags": {},
-      "order": 3,
+      "order": 0,
       "mode": 0,
-      "outputs": [{"name": "TRELLIS_CONFIG", "type": "TRELLIS_CONFIG", "links": [301]}],
       "inputs": [],
-      "properties": {"Node name for S&R": "SegviGenTrellisConfigLoader"}
+      "outputs": [
+        {
+          "name": "TRELLIS_CONFIG",
+          "type": "TRELLIS_CONFIG",
+          "links": [
+            301
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenTrellisConfigLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "microsoft/TRELLIS.2-4B"
+      ]
     },
     {
-      "id":  6,
+      "id": 6,
       "type": "SegviGenCheckpointLoader",
-      "pos": [10, 370],
-      "size": {"0": 315, "1": 82},
+      "pos": [
+        -91.83164552654796,
+        801.4022663906048
+      ],
+      "size": [
+        378,
+        106.10000610351562
+      ],
       "flags": {},
-      "order": 4,
+      "order": 1,
       "mode": 0,
-      "outputs": [{"name": "SEG_FLOW_MODEL", "type": "SEG_FLOW_MODEL", "links": [300]}],
       "inputs": [],
-      "properties": {"Node name for S&R": "SegviGenCheckpointLoader"}
+      "outputs": [
+        {
+          "name": "SEG_FLOW_MODEL",
+          "type": "SEG_FLOW_MODEL",
+          "links": [
+            300
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenCheckpointLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "full_w_2d_map"
+      ]
     },
     {
       "id": 10,
       "type": "LoadImage",
-      "pos": [400, 10],
-      "size": {"0": 315, "1": 314},
+      "pos": [
+        -203.62162576758703,
+        1004.9663709513331
+      ],
+      "size": [
+        695.1333618164062,
+        673.4000244140625
+      ],
       "flags": {},
-      "order": 5,
+      "order": 2,
       "mode": 0,
-      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [110]}, {"name": "MASK", "type": "MASK", "links": []}],
       "inputs": [],
-      "properties": {"Node name for S&R": "LoadImage"}
-    },
-    {
-      "id": 11,
-      "type": "SegviGenImagePreprocessor",
-      "pos": [750, 10],
-      "size": {"0": 315, "1": 82},
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [120]}],
-      "inputs": [{"name": "image", "type": "IMAGE", "link": 110}],
-      "properties": {"Node name for S&R": "SegviGenImagePreprocessor"}
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            62
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "2ae5cf2990c34e7db704f677de8de74c.png",
+        "image"
+      ]
     },
     {
       "id": 12,
       "type": "SegviGenImageToCond",
-      "pos": [1100, 10],
-      "size": {"0": 315, "1": 58},
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING", "links": [304]}],
-      "inputs": [{"name": "image", "type": "IMAGE", "link": 120}],
-      "properties": {"Node name for S&R": "SegviGenImageToCond"}
-    },
-    {
-      "id": 20,
-      "type": "SegviGenLoadGLB",
-      "pos": [400, 400],
-      "size": {"0": 315, "1": 82},
+      "pos": [
+        485.7928823434778,
+        153.97997531408907
+      ],
+      "size": [
+        378,
+        95.43333435058594
+      ],
       "flags": {},
       "order": 8,
       "mode": 0,
-      "outputs": [{"name": "STRING", "type": "STRING", "links": [213]}],
-      "inputs": [],
-      "properties": {"Node name for S&R": "SegviGenLoadGLB"}
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 62
+        },
+        {
+          "name": "dino_model",
+          "type": "DINO_MODEL",
+          "link": 70
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            304
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenImageToCond",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
     },
     {
-      "id": 23,
-      "type": "SegviGenGLBToVXZ",
-      "pos": [400, 520],
-      "size": {"0": 315, "1": 100},
+      "id": 21,
+      "type": "SegviGenVXZToSlat",
+      "pos": [
+        367.03859823423124,
+        453.445041647009
+      ],
+      "size": [
+        378,
+        184.8000030517578
+      ],
       "flags": {},
       "order": 9,
       "mode": 0,
-      "outputs": [{"name": "STRING", "type": "STRING", "links": [214]}],
-      "inputs": [{"name": "glb_path", "type": "STRING", "link": 213}],
-      "properties": {"Node name for S&R": "SegviGenGLBToVXZ"}
-    },
-    {
-       "id": 21,
-       "type": "SegviGenVXZToSlat",
-       "pos": [750, 400],
-       "size": {"0": 315, "1": 154},
-       "flags": {},
-       "order": 10,
-       "mode": 0,
-       "outputs": [
-         {"name": "SHAPE_SLAT", "type": "SHAPE_SLAT", "links": [302]},
-         {"name": "TEX_SLAT", "type": "TEX_SLAT", "links": [303]},
-         {"name": "MESH", "type": "MESH", "links": [500]},
-         {"name": "SUBS", "type": "SUBS", "links": [402]}
-       ],
-       "inputs": [
-         {"name": "vxz_path", "type": "STRING", "link": 214},
-         {"name": "shape_encoder", "type": "TRELLIS_SHAPE_ENCODER", "link": 210},
-         {"name": "tex_encoder", "type": "TRELLIS_TEX_ENCODER", "link": 211},
-         {"name": "shape_decoder", "type": "TRELLIS_SHAPE_DECODER", "link": 212}
-       ],
-       "properties": {"Node name for S&R": "SegviGenVXZToSlat"}
+      "inputs": [
+        {
+          "name": "shape_encoder",
+          "type": "TRELLIS_SHAPE_ENCODER",
+          "link": 65
+        },
+        {
+          "name": "tex_encoder",
+          "type": "TRELLIS_TEX_ENCODER",
+          "link": 66
+        },
+        {
+          "name": "shape_decoder",
+          "type": "TRELLIS_SHAPE_DECODER",
+          "link": 67
+        },
+        {
+          "name": "vxz_path",
+          "type": "STRING",
+          "widget": {
+            "name": "vxz_path"
+          },
+          "link": 53
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SHAPE_SLAT",
+          "type": "SHAPE_SLAT",
+          "links": [
+            302
+          ]
+        },
+        {
+          "name": "TEX_SLAT",
+          "type": "TEX_SLAT",
+          "links": [
+            303
+          ]
+        },
+        {
+          "name": "MESHES",
+          "type": "MESHES",
+          "links": [
+            500
+          ]
+        },
+        {
+          "name": "SUBS",
+          "type": "SUBS",
+          "links": [
+            402,
+            59
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenVXZToSlat",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "vxz_path": true
+          },
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        ""
+      ]
     },
     {
       "id": 30,
       "type": "SegviGenSampler",
-      "pos": [1100, 400],
-      "size": {"0": 315, "1": 202},
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "outputs": [{"name": "TEX_SLAT", "type": "TEX_SLAT", "links": [400]}],
-      "inputs": [
-        {"name": "flow_model", "type": "SEG_FLOW_MODEL", "link": 300},
-        {"name": "trellis_config", "type": "TRELLIS_CONFIG", "link": 301},
-        {"name": "shape_slat", "type": "SHAPE_SLAT", "link": 302},
-        {"name": "tex_slat", "type": "TEX_SLAT", "link": 303},
-        {"name": "conditioning", "type": "CONDITIONING", "link": 304},
-        {"name": "subs", "type": "SUBS", "link": 305}
+      "pos": [
+        878.9407199682141,
+        322.4129225661153
       ],
-      "properties": {"Node name for S&R": "SegviGenSampler"}
-    },
-    {
-      "id": 4,
-      "type": "SegviGenTexDecoderLoader",
-      "pos": [1100, 650],
-      "size": {"0": 315, "1": 58},
+      "size": [
+        490.25,
+        438.8500061035156
+      ],
       "flags": {},
-      "order": 12,
+      "order": 10,
       "mode": 0,
-      "outputs": [{"name": "TEX_DECODER", "type": "TRELLIS_TEX_DECODER", "links": [401]}],
-      "inputs": [],
-      "properties": {"Node name for S&R": "SegviGenTexDecoderLoader"}
+      "inputs": [
+        {
+          "name": "flow_model",
+          "type": "SEG_FLOW_MODEL",
+          "link": 300
+        },
+        {
+          "name": "trellis_config",
+          "type": "TRELLIS_CONFIG",
+          "link": 301
+        },
+        {
+          "name": "shape_slat",
+          "type": "SHAPE_SLAT",
+          "link": 302
+        },
+        {
+          "name": "tex_slat",
+          "type": "TEX_SLAT",
+          "link": 303
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 304
+        },
+        {
+          "name": "subs",
+          "type": "SUBS",
+          "link": 59
+        },
+        {
+          "name": "input_points",
+          "shape": 7,
+          "type": "INPUT_POINTS",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "OUTPUT_TEX_SLAT",
+          "type": "OUTPUT_TEX_SLAT",
+          "links": [
+            400
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenSampler",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        8,
+        1,
+        "0.6",
+        3,
+        196724522114791,
+        "fixed"
+      ]
     },
     {
       "id": 40,
       "type": "SegviGenSlatToVoxel",
-      "pos": [1450, 400],
-      "size": {"0": 315, "1": 130},
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "outputs": [{"name": "TEX_VOXEL", "type": "TEX_VOXEL", "links": [501]}],
-      "inputs": [
-        {"name": "tex_slat", "type": "TEX_SLAT", "link": 400},
-        {"name": "tex_decoder", "type": "TRELLIS_TEX_DECODER", "link": 401},
-        {"name": "subs", "type": "SUBS", "link": 402}
+      "pos": [
+        1380.8865358127023,
+        432.4488859000262
       ],
-      "properties": {"Node name for S&R": "SegviGenSlatToVoxel"}
+      "size": [
+        378,
+        156
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tex_slat",
+          "type": "OUTPUT_TEX_SLAT",
+          "link": 400
+        },
+        {
+          "name": "tex_decoder",
+          "type": "TRELLIS_TEX_DECODER",
+          "link": 68
+        },
+        {
+          "name": "subs",
+          "type": "SUBS",
+          "link": 402
+        }
+      ],
+      "outputs": [
+        {
+          "name": "TEX_VOXELS",
+          "type": "TEX_VOXELS",
+          "links": [
+            501
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenSlatToVoxel",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
     },
     {
       "id": 50,
       "type": "SegviGenVoxelToGLB",
-      "pos": [1800, 400],
-      "size": {"0": 315, "1": 130},
+      "pos": [
+        1793.8438355334843,
+        265.3055930630477
+      ],
+      "size": [
+        374.54998779296875,
+        165.8000030517578
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "meshes",
+          "type": "MESHES",
+          "link": 500
+        },
+        {
+          "name": "tex_voxels",
+          "type": "TEX_VOXELS",
+          "link": 501
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            63
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenVoxelToGLB",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "output.glb",
+        502
+      ]
+    },
+    {
+      "id": 52,
+      "type": "SegviGenGLBToVXZ",
+      "pos": [
+        456.7491621385442,
+        720.9258661357633
+      ],
+      "size": [
+        270,
+        143.43333435058594
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "widget": {
+            "name": "glb_path"
+          },
+          "link": 54
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            53
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
+        "Node name for S&R": "SegviGenGLBToVXZ",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "",
+        "output.vxz"
+      ]
+    },
+    {
+      "id": 54,
+      "type": "Load3D",
+      "pos": [
+        564.1025724999993,
+        994.2361590615099
+      ],
+      "size": [
+        831.7666625976562,
+        914.5166625976562
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "mesh_path",
+          "type": "STRING",
+          "links": [
+            54
+          ]
+        },
+        {
+          "name": "normal",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "camera_info",
+          "type": "LOAD3D_CAMERA",
+          "links": null
+        },
+        {
+          "name": "recording_video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "model_3d",
+          "type": "FILE_3D",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Resource Folder": "",
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "Load3D",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 75,
+          "state": {
+            "position": {
+              "x": 3.1121853379440005,
+              "y": 2.7910339421138803,
+              "z": 1.2881587453148535
+            },
+            "target": {
+              "x": 0,
+              "y": 0.9348162739952822,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Scene Config": {
+          "showGrid": true,
+          "backgroundColor": "#000000",
+          "backgroundImage": "",
+          "backgroundRenderMode": "tiled"
+        },
+        "Model Config": {
+          "upDirection": "original",
+          "materialMode": "original",
+          "showSkeleton": false
+        }
+      },
+      "widgets_values": [
+        "3d/2ae5cf2990c34e7db704f677de8de74c.glb",
+        null,
+        "uploadExtraResources",
+        "clear",
+        "",
+        2048,
+        1024
+      ]
+    },
+    {
+      "id": 58,
+      "type": "Preview3D",
+      "pos": [
+        2545.7307790925283,
+        -20.540361811997172
+      ],
+      "size": [
+        1448.433349609375,
+        1324.6666259765625
+      ],
       "flags": {},
       "order": 14,
       "mode": 0,
-      "outputs": [{"name": "STRING", "type": "STRING", "links": []}],
       "inputs": [
-        {"name": "meshes", "type": "MESH", "link": 500},
-        {"name": "tex_voxels", "type": "TEX_VOXEL", "link": 501}
+        {
+          "name": "camera_info",
+          "shape": 7,
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        },
+        {
+          "name": "bg_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "model_file",
+          "type": "STRING,FILE_3D_GLB,FILE_3D_GLTF,FILE_3D_FBX,FILE_3D_OBJ,FILE_3D_STL,FILE_3D_USDZ,FILE_3D",
+          "widget": {
+            "name": "model_file"
+          },
+          "link": 69
+        }
       ],
-      "properties": {"Node name for S&R": "SegviGenVoxelToGLB"}
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "Preview3D",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "Last Time Model File": "/home/aero/comfy/ComfyUI/output/segmented_parts.glb",
+        "Resource Folder": "aero/comfy/ComfyUI/output",
+        "Scene Config": {
+          "showGrid": true,
+          "backgroundColor": "#282828",
+          "backgroundImage": "",
+          "backgroundRenderMode": "tiled"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": 5.292558217447181,
+              "y": 3.012944321397579,
+              "z": 3.916723062452192
+            },
+            "target": {
+              "x": 0,
+              "y": 0.9398883276572252,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 10
+        }
+      },
+      "widgets_values": [
+        "/home/aero/comfy/ComfyUI/output/segmented_parts.glb",
+        ""
+      ]
+    },
+    {
+      "id": 59,
+      "type": "SegviGenSplitColorGLB",
+      "pos": [
+        1514.291569898387,
+        726.9099646377547
+      ],
+      "size": [
+        434.6166687011719,
+        175.43333435058594
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "widget": {
+            "name": "glb_path"
+          },
+          "link": 63
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            69
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "90c628e8ef1af5c9c127ad9f546fcf57a91f0c03",
+        "Node name for S&R": "SegviGenSplitColorGLB",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "",
+        "segmented_parts.glb",
+        1
+      ]
+    },
+    {
+      "id": 60,
+      "type": "SegviGenEncoderLoader",
+      "pos": [
+        -79.966550975801,
+        434.8219898236507
+      ],
+      "size": [
+        348.4333190917969,
+        137.18333435058594
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SHAPE_ENCODER",
+          "type": "TRELLIS_SHAPE_ENCODER",
+          "links": [
+            65
+          ]
+        },
+        {
+          "name": "TEX_ENCODER",
+          "type": "TRELLIS_TEX_ENCODER",
+          "links": [
+            66
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "90c628e8ef1af5c9c127ad9f546fcf57a91f0c03",
+        "Node name for S&R": "SegviGenEncoderLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "microsoft/TRELLIS.2-4B"
+      ]
+    },
+    {
+      "id": 61,
+      "type": "SegviGenDecoderLoader",
+      "pos": [
+        -78.7799990139888,
+        253.75008925025713
+      ],
+      "size": [
+        342.6666564941406,
+        131.43333435058594
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SHAPE_DECODER",
+          "type": "TRELLIS_SHAPE_DECODER",
+          "links": [
+            67
+          ]
+        },
+        {
+          "name": "TEX_DECODER",
+          "type": "TRELLIS_TEX_DECODER",
+          "links": [
+            68
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "90c628e8ef1af5c9c127ad9f546fcf57a91f0c03",
+        "Node name for S&R": "SegviGenDecoderLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "microsoft/TRELLIS.2-4B"
+      ]
+    },
+    {
+      "id": 66,
+      "type": "SegviGenDinoLoader",
+      "pos": [
+        -20.149762734929823,
+        115.90411799018779
+      ],
+      "size": [
+        225,
+        71.43333435058594
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "DINO_MODEL",
+          "type": "DINO_MODEL",
+          "links": [
+            70
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
+        "ver": "90c628e8ef1af5c9c127ad9f546fcf57a91f0c03",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "SegviGenDinoLoader"
+      },
+      "widgets_values": []
     }
   ],
   "links": [
-    [110, 10, 0, 11, 0, "IMAGE"],
-    [120, 11, 0, 12, 0, "IMAGE"],
-    [210, 1, 0, 21, 1, "TRELLIS_SHAPE_ENCODER"],
-    [211, 2, 0, 21, 2, "TRELLIS_TEX_ENCODER"],
-    [212, 3, 0, 21, 3, "TRELLIS_SHAPE_DECODER"],
-    [213, 20, 0, 23, 0, "STRING"],
-    [214, 23, 0, 21, 0, "STRING"],
-    [300, 6, 0, 30, 0, "SEG_FLOW_MODEL"],
-    [301, 5, 0, 30, 1, "TRELLIS_CONFIG"],
-    [302, 21, 0, 30, 2, "SHAPE_SLAT"],
-    [303, 21, 1, 30, 3, "TEX_SLAT"],
-    [304, 12, 0, 30, 4, "CONDITIONING"],
-    [400, 30, 0, 40, 0, "TEX_SLAT"],
-    [401, 4, 0, 40, 1, "TRELLIS_TEX_DECODER"],
-    [402, 21, 3, 40, 2, "SUBS"],
-    [500, 21, 2, 50, 0, "MESH"],
-    [501, 40, 0, 50, 1, "TEX_VOXEL"],
-    [305, 21, 3, 30, 5, "SUBS"]
+    [
+      300,
+      6,
+      0,
+      30,
+      0,
+      "SEG_FLOW_MODEL"
+    ],
+    [
+      301,
+      5,
+      0,
+      30,
+      1,
+      "TRELLIS_CONFIG"
+    ],
+    [
+      302,
+      21,
+      0,
+      30,
+      2,
+      "SHAPE_SLAT"
+    ],
+    [
+      303,
+      21,
+      1,
+      30,
+      3,
+      "TEX_SLAT"
+    ],
+    [
+      304,
+      12,
+      0,
+      30,
+      4,
+      "CONDITIONING"
+    ],
+    [
+      400,
+      30,
+      0,
+      40,
+      0,
+      "TEX_SLAT"
+    ],
+    [
+      402,
+      21,
+      3,
+      40,
+      2,
+      "SUBS"
+    ],
+    [
+      500,
+      21,
+      2,
+      50,
+      0,
+      "MESH"
+    ],
+    [
+      501,
+      40,
+      0,
+      50,
+      1,
+      "TEX_VOXEL"
+    ],
+    [
+      53,
+      52,
+      0,
+      21,
+      3,
+      "STRING"
+    ],
+    [
+      54,
+      54,
+      2,
+      52,
+      0,
+      "STRING"
+    ],
+    [
+      59,
+      21,
+      3,
+      30,
+      5,
+      "SUBS"
+    ],
+    [
+      62,
+      10,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      63,
+      50,
+      0,
+      59,
+      0,
+      "STRING"
+    ],
+    [
+      65,
+      60,
+      0,
+      21,
+      0,
+      "TRELLIS_SHAPE_ENCODER"
+    ],
+    [
+      66,
+      60,
+      1,
+      21,
+      1,
+      "TRELLIS_TEX_ENCODER"
+    ],
+    [
+      67,
+      61,
+      0,
+      21,
+      2,
+      "TRELLIS_SHAPE_DECODER"
+    ],
+    [
+      68,
+      61,
+      1,
+      40,
+      1,
+      "TRELLIS_TEX_DECODER"
+    ],
+    [
+      69,
+      59,
+      0,
+      58,
+      2,
+      "STRING"
+    ],
+    [
+      70,
+      66,
+      0,
+      12,
+      1,
+      "DINO_MODEL"
+    ]
   ],
   "groups": [],
   "config": {},
-  "extra": {},
+  "extra": {
+    "workflowRendererVersion": "Vue",
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "ds": {
+      "scale": 0.25421914654233857,
+      "offset": [
+        816.0011411282004,
+        756.5511755050323
+      ]
+    },
+    "frontendVersion": "1.41.19",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
   "version": 0.4
 }
