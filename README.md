@@ -2,7 +2,7 @@
 
 ![Overview](assets/overview.png)
 
-A ComfyUI implementation of SegviGen, providing precise 3D texturing and interactive segmentation for TRELLIS 2.0.
+A ComfyUI implementation of SegviGen, providing precise 3D part segmentation for SegviGen.
 
 
 ## Installation
