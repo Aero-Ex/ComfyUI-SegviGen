@@ -165,6 +165,10 @@ class SparseStructureEncoder(nn.Module):
         """
         return next(self.parameters()).device
 
+    @device.setter
+    def device(self, value):
+        pass
+
     def convert_to_fp16(self) -> None:
         """
         Convert the torso of the model to float16.
@@ -273,6 +277,10 @@ class SparseStructureDecoder(nn.Module):
         Return the device of the model.
         """
         return next(self.parameters()).device
+
+    @device.setter
+    def device(self, value):
+        pass
     
     def convert_to_fp16(self) -> None:
         """

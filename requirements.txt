@@ -8,12 +8,4 @@ huggingface_hub
 transformers==4.57.6
 mathutils
 bpy==4.0.0
-# nvdiffrast and nvdiffrec usually need manual installation or specific wheels
-# nvdiffrast
-# nvdiffrec
-# o_voxel
-# cumesh
-# flexgemm
-# flash-attn
-# rembg (if using BiRefNet)
 rembg

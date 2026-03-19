@@ -1,150 +1,234 @@
 {
-  "1": {
-    "inputs": {
-      "repo_id": "microsoft/TRELLIS.2-4B"
+  "last_node_id": 60,
+  "last_link_id": 60,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "SegviGenShapeEncoderLoader",
+      "pos": [10, 10],
+      "size": {"0": 315, "1": 58},
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [{"name": "SHAPE_ENCODER", "type": "TRELLIS_SHAPE_ENCODER", "links": [210]}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "SegviGenShapeEncoderLoader"}
     },
-    "class_type": "SegviGenShapeEncoderLoader"
-  },
-  "2": {
-    "inputs": {
-      "repo_id": "microsoft/TRELLIS.2-4B"
+    {
+      "id": 2,
+      "type": "SegviGenTexEncoderLoader",
+      "pos": [10, 100],
+      "size": {"0": 315, "1": 58},
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [{"name": "TEX_ENCODER", "type": "TRELLIS_TEX_ENCODER", "links": [211]}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "SegviGenTexEncoderLoader"}
     },
-    "class_type": "SegviGenTexEncoderLoader"
-  },
-  "3": {
-    "inputs": {
-      "repo_id": "microsoft/TRELLIS.2-4B"
+    {
+      "id": 3,
+      "type": "SegviGenShapeDecoderLoader",
+      "pos": [10, 190],
+      "size": {"0": 315, "1": 58},
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [{"name": "SHAPE_DECODER", "type": "TRELLIS_SHAPE_DECODER", "links": [212]}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "SegviGenShapeDecoderLoader"}
     },
-    "class_type": "SegviGenShapeDecoderLoader"
-  },
-  "4": {
-    "inputs": {
-      "repo_id": "microsoft/TRELLIS.2-4B"
+    {
+      "id": 5,
+      "type": "SegviGenTrellisConfigLoader",
+      "pos": [10, 280],
+      "size": {"0": 315, "1": 58},
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [{"name": "TRELLIS_CONFIG", "type": "TRELLIS_CONFIG", "links": [301]}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "SegviGenTrellisConfigLoader"}
     },
-    "class_type": "SegviGenTexDecoderLoader"
-  },
-  "5": {
-    "inputs": {
-      "repo_id": "microsoft/TRELLIS.2-4B"
+    {
+      "id":  6,
+      "type": "SegviGenCheckpointLoader",
+      "pos": [10, 370],
+      "size": {"0": 315, "1": 82},
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [{"name": "SEG_FLOW_MODEL", "type": "SEG_FLOW_MODEL", "links": [300]}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "SegviGenCheckpointLoader"}
     },
-    "class_type": "SegviGenTrellisConfigLoader"
-  },
-  "6": {
-    "inputs": {
-      "mode": "full"
+    {
+      "id": 10,
+      "type": "LoadImage",
+      "pos": [400, 10],
+      "size": {"0": 315, "1": 314},
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [110]}, {"name": "MASK", "type": "MASK", "links": []}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "LoadImage"}
     },
-    "class_type": "SegviGenCheckpointLoader"
-  },
-  "10": {
-    "inputs": {
-      "image": "example.png",
-      "upload": "image"
+    {
+      "id": 11,
+      "type": "SegviGenImagePreprocessor",
+      "pos": [750, 10],
+      "size": {"0": 315, "1": 82},
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [120]}],
+      "inputs": [{"name": "image", "type": "IMAGE", "link": 110}],
+      "properties": {"Node name for S&R": "SegviGenImagePreprocessor"}
     },
-    "class_type": "LoadImage"
-  },
-  "11": {
-    "inputs": {
-      "image": [
-        "10",
-        0
-      ]
+    {
+      "id": 12,
+      "type": "SegviGenImageToCond",
+      "pos": [1100, 10],
+      "size": {"0": 315, "1": 58},
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING", "links": [304]}],
+      "inputs": [{"name": "image", "type": "IMAGE", "link": 120}],
+      "properties": {"Node name for S&R": "SegviGenImageToCond"}
     },
-    "class_type": "SegviGenImagePreprocessor"
-  },
-  "12": {
-    "inputs": {
-      "image": [
-        "11",
-        0
-      ]
+    {
+      "id": 20,
+      "type": "SegviGenLoadGLB",
+      "pos": [400, 400],
+      "size": {"0": 315, "1": 82},
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "outputs": [{"name": "STRING", "type": "STRING", "links": [213]}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "SegviGenLoadGLB"}
     },
-    "class_type": "SegviGenImageToCond"
-  },
-  "20": {
-    "inputs": {
-      "glb_path": "input.glb",
-      "vxz_output_path": "temp.vxz"
+    {
+      "id": 23,
+      "type": "SegviGenGLBToVXZ",
+      "pos": [400, 520],
+      "size": {"0": 315, "1": 100},
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "outputs": [{"name": "STRING", "type": "STRING", "links": [214]}],
+      "inputs": [{"name": "glb_path", "type": "STRING", "link": 213}],
+      "properties": {"Node name for S&R": "SegviGenGLBToVXZ"}
     },
-    "class_type": "SegviGenGLBToVXZ"
-  },
-  "21": {
-    "inputs": {
-      "vxz_path": [
-        "20",
-        0
+    {
+       "id": 21,
+       "type": "SegviGenVXZToSlat",
+       "pos": [750, 400],
+       "size": {"0": 315, "1": 154},
+       "flags": {},
+       "order": 10,
+       "mode": 0,
+       "outputs": [
+         {"name": "SHAPE_SLAT", "type": "SHAPE_SLAT", "links": [302]},
+         {"name": "TEX_SLAT", "type": "TEX_SLAT", "links": [303]},
+         {"name": "MESH", "type": "MESH", "links": [500]},
+         {"name": "SUBS", "type": "SUBS", "links": [402]}
+       ],
+       "inputs": [
+         {"name": "vxz_path", "type": "STRING", "link": 214},
+         {"name": "shape_encoder", "type": "TRELLIS_SHAPE_ENCODER", "link": 210},
+         {"name": "tex_encoder", "type": "TRELLIS_TEX_ENCODER", "link": 211},
+         {"name": "shape_decoder", "type": "TRELLIS_SHAPE_DECODER", "link": 212}
+       ],
+       "properties": {"Node name for S&R": "SegviGenVXZToSlat"}
+    },
+    {
+      "id": 30,
+      "type": "SegviGenSampler",
+      "pos": [1100, 400],
+      "size": {"0": 315, "1": 202},
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "outputs": [{"name": "TEX_SLAT", "type": "TEX_SLAT", "links": [400]}],
+      "inputs": [
+        {"name": "flow_model", "type": "SEG_FLOW_MODEL", "link": 300},
+        {"name": "trellis_config", "type": "TRELLIS_CONFIG", "link": 301},
+        {"name": "shape_slat", "type": "SHAPE_SLAT", "link": 302},
+        {"name": "tex_slat", "type": "TEX_SLAT", "link": 303},
+        {"name": "conditioning", "type": "CONDITIONING", "link": 304},
+        {"name": "subs", "type": "SUBS", "link": 305}
       ],
-      "shape_encoder": [
-        "1",
-        0
-      ],
-      "tex_encoder": [
-        "2",
-        0
-      ],
-      "shape_decoder": [
-        "3",
-        0
-      ]
+      "properties": {"Node name for S&R": "SegviGenSampler"}
     },
-    "class_type": "SegviGenVXZToSlat"
-  },
-  "30": {
-    "inputs": {
-      "flow_model": [
-        "6",
-        0
-      ],
-      "trellis_config": [
-        "5",
-        0
-      ],
-      "shape_slat": [
-        "21",
-        0
-      ],
-      "tex_slat": [
-        "21",
-        1
-      ],
-      "conditioning": [
-        "12",
-        0
-      ],
-      "steps": 50,
-      "guidance_strength": 7.5
+    {
+      "id": 4,
+      "type": "SegviGenTexDecoderLoader",
+      "pos": [1100, 650],
+      "size": {"0": 315, "1": 58},
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "outputs": [{"name": "TEX_DECODER", "type": "TRELLIS_TEX_DECODER", "links": [401]}],
+      "inputs": [],
+      "properties": {"Node name for S&R": "SegviGenTexDecoderLoader"}
     },
-    "class_type": "SegviGenSampler"
-  },
-  "40": {
-    "inputs": {
-      "tex_slat": [
-        "30",
-        0
+    {
+      "id": 40,
+      "type": "SegviGenSlatToVoxel",
+      "pos": [1450, 400],
+      "size": {"0": 315, "1": 130},
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "outputs": [{"name": "TEX_VOXEL", "type": "TEX_VOXEL", "links": [501]}],
+      "inputs": [
+        {"name": "tex_slat", "type": "TEX_SLAT", "link": 400},
+        {"name": "tex_decoder", "type": "TRELLIS_TEX_DECODER", "link": 401},
+        {"name": "subs", "type": "SUBS", "link": 402}
       ],
-      "tex_decoder": [
-        "4",
-        0
-      ],
-      "subs": [
-        "21",
-        3
-      ]
+      "properties": {"Node name for S&R": "SegviGenSlatToVoxel"}
     },
-    "class_type": "SegviGenSlatToVoxel"
-  },
-  "50": {
-    "inputs": {
-      "meshes": [
-        "21",
-        2
+    {
+      "id": 50,
+      "type": "SegviGenVoxelToGLB",
+      "pos": [1800, 400],
+      "size": {"0": 315, "1": 130},
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "outputs": [{"name": "STRING", "type": "STRING", "links": []}],
+      "inputs": [
+        {"name": "meshes", "type": "MESH", "link": 500},
+        {"name": "tex_voxels", "type": "TEX_VOXEL", "link": 501}
       ],
-      "tex_voxels": [
-        "40",
-        0
-      ],
-      "output_path": "segvigen_output.glb",
-      "resolution": 512
-    },
-    "class_type": "SegviGenVoxelToGLB"
-  }
+      "properties": {"Node name for S&R": "SegviGenVoxelToGLB"}
+    }
+  ],
+  "links": [
+    [110, 10, 0, 11, 0, "IMAGE"],
+    [120, 11, 0, 12, 0, "IMAGE"],
+    [210, 1, 0, 21, 1, "TRELLIS_SHAPE_ENCODER"],
+    [211, 2, 0, 21, 2, "TRELLIS_TEX_ENCODER"],
+    [212, 3, 0, 21, 3, "TRELLIS_SHAPE_DECODER"],
+    [213, 20, 0, 23, 0, "STRING"],
+    [214, 23, 0, 21, 0, "STRING"],
+    [300, 6, 0, 30, 0, "SEG_FLOW_MODEL"],
+    [301, 5, 0, 30, 1, "TRELLIS_CONFIG"],
+    [302, 21, 0, 30, 2, "SHAPE_SLAT"],
+    [303, 21, 1, 30, 3, "TEX_SLAT"],
+    [304, 12, 0, 30, 4, "CONDITIONING"],
+    [400, 30, 0, 40, 0, "TEX_SLAT"],
+    [401, 4, 0, 40, 1, "TRELLIS_TEX_DECODER"],
+    [402, 21, 3, 40, 2, "SUBS"],
+    [500, 21, 2, 50, 0, "MESH"],
+    [501, 40, 0, 50, 1, "TEX_VOXEL"],
+    [305, 21, 3, 30, 5, "SUBS"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
 }
