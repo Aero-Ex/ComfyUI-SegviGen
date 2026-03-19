@@ -24,7 +24,7 @@ from .trellis2.representations import MeshWithVoxel
 from .trellis2.modules.image_feature_extractor import DinoV3FeatureExtractor
 from .trellis2.modules.utils import manual_cast
 
-from .data_toolkit.bpy_render import render_from_transforms
+# from .data_toolkit.bpy_render import render_from_transforms
 import o_voxel
 import nvdiffrast.torch as nr
 from trimesh.visual.material import PBRMaterial
