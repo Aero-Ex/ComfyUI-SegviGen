@@ -1,7 +1,7 @@
 [project]
 name = "ComfyUI-SegviGen"
 description = "A ComfyUI implementation of SegviGen, providing precise 3D part segmentation using SegviGen."
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 dynamic = ["dependencies"]
 readme = "README.md"
