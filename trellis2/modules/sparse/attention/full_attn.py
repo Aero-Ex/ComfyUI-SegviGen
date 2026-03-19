@@ -199,18 +199,33 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
         cu_seqlens_q = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(q_seqlen), dim=0)]).int().to(device)
         if num_all_args == 1:
             q, k, v = qkv.unbind(dim=1)
-            cu_seqlens_kv = cu_seqlens_q.clone()
+            cu_seqlens_kv = cu_seqlens_q
             max_q_seqlen = max_kv_seqlen = max(q_seqlen)
-        elif num_all_args == 2:
-            k, v = kv.unbind(dim=1)
-            cu_seqlens_kv = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(kv_seqlen), dim=0)]).int().to(device)
-            max_q_seqlen = max(q_seqlen)
-            max_kv_seqlen = max(kv_seqlen)
-        elif num_all_args == 3:
+        else:
+            if num_all_args == 2:
+                k, v = kv.unbind(dim=1)
             cu_seqlens_kv = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(kv_seqlen), dim=0)]).int().to(device)
             max_q_seqlen = max(q_seqlen)
             max_kv_seqlen = max(kv_seqlen)
         out = flash_attn_3.flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_q_seqlen, max_kv_seqlen)
+    elif config.ATTN == 'sdpa':
+        if num_all_args == 1:
+            q, k, v = qkv.unbind(dim=1)
+        elif num_all_args == 2:
+            k, v = kv.unbind(dim=1)
+        
+        # SDPA fallback for VarLenTensor
+        out = torch.zeros_like(q)
+        cu_seqlens_q = [0] + torch.cumsum(torch.tensor(q_seqlen), dim=0).tolist()
+        cu_seqlens_kv = [0] + torch.cumsum(torch.tensor(kv_seqlen), dim=0).tolist()
+        for i in range(len(q_seqlen)):
+            start_q, end_q = cu_seqlens_q[i], cu_seqlens_q[i+1]
+            start_kv, end_kv = cu_seqlens_kv[i], cu_seqlens_kv[i+1]
+            qi = q[start_q:end_q].unsqueeze(0).transpose(1, 2) # [1, H, L, C]
+            ki = k[start_kv:end_kv].unsqueeze(0).transpose(1, 2)
+            vi = v[start_kv:end_kv].unsqueeze(0).transpose(1, 2)
+            oi = torch.nn.functional.scaled_dot_product_attention(qi, ki, vi)
+            out[start_q:end_q] = oi.transpose(1, 2).squeeze(0)
     else:
         raise ValueError(f"Unknown attention module: {config.ATTN}")
     

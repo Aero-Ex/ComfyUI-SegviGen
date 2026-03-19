@@ -14,8 +14,21 @@ def __from_env():
     
     if env_attn_backend is not None and env_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3', 'sdpa', 'naive']:
         BACKEND = env_attn_backend
-    if env_attn_debug is not None:
-        DEBUG = env_attn_debug == '1'
+    else:
+        # Auto-detect best available backend
+        try:
+            import flash_attn
+            BACKEND = 'flash_attn'
+        except ImportError:
+            try:
+                import flash_attn_interface
+                BACKEND = 'flash_attn_3'
+            except ImportError:
+                try:
+                    import xformers
+                    BACKEND = 'xformers'
+                except ImportError:
+                    BACKEND = 'sdpa'
 
     print(f"[ATTENTION] Using backend: {BACKEND}")
         
@@ -23,7 +36,7 @@ def __from_env():
 __from_env()
     
 
-def set_backend(backend: Literal['xformers', 'flash_attn']):
+def set_backend(backend: Literal['xformers', 'flash_attn', 'flash_attn_3', 'sdpa', 'naive']):
     global BACKEND
     BACKEND = backend
 

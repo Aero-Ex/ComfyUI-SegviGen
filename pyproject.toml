@@ -1,0 +1,18 @@
+[project]
+name = "ComfyUI-SegviGen"
+description = "A ComfyUI implementation of SegviGen, providing precise 3D part segmentation using SegviGen."
+version = "0.1.0"
+license = "MIT"
+dynamic = ["dependencies"]
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.setuptools.dynamic]
+
+[project.urls]
+Repository = "https://github.com/Aero-Ex/ComfyUI-SegviGen"
+
+[tool.comfy]
+PublisherId = "aerox"
+DisplayName = "ComfyUI-SegviGen"
+Icon = ""
