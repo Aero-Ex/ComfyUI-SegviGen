@@ -5,8 +5,9 @@ from torchvision import transforms
 from PIL import Image
 
 
-class BiRefNet:
+class BiRefNet(torch.nn.Module):
     def __init__(self, model_name: str = "ZhengPeng7/BiRefNet", local_dir: str = None):
+        super().__init__()
         self.model = AutoModelForImageSegmentation.from_pretrained(
             model_name, trust_remote_code=True, local_dir=local_dir
         )
@@ -18,15 +19,6 @@ class BiRefNet:
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ]
         )
-    
-    def to(self, device: str):
-        self.model.to(device)
-
-    def cuda(self):
-        self.model.cuda()
-
-    def cpu(self):
-        self.model.cpu()
         
     def __call__(self, image: Image.Image) -> Image.Image:
         image_size = image.size

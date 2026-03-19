@@ -75,19 +75,50 @@ def flow_forward_interactive(self, x, t, cond, concat_cond, point_embeds, coords
     h = self.out_layer(h)
     return h
 
+class Gen3DSeg(nn.Module):
+    def __init__(self, flow_model):
+        super().__init__()
+        self.flow_model = flow_model
+
+    def forward(self, x_t, tex_slats, shape_slats, t, cond, coords_len_list):
+        input_tex_feats_list = []
+        input_tex_coords_list = []
+        shape_feats_list = []
+        shape_coords_list = []
+        begin = 0
+        for coords_len in coords_len_list:
+            end = begin + coords_len
+            input_tex_feats_list.append(x_t.feats[begin:end])
+            input_tex_feats_list.append(tex_slats.feats[begin:end])
+            input_tex_coords_list.append(x_t.coords[begin:end])
+            input_tex_coords_list.append(tex_slats.coords[begin:end])
+            shape_feats_list.append(shape_slats.feats[begin:end])
+            shape_feats_list.append(shape_slats.feats[begin:end])
+            shape_coords_list.append(shape_slats.coords[begin:end])
+            shape_coords_list.append(shape_slats.coords[begin:end])
+            begin = end
+        x_t = sp.SparseTensor(torch.cat(input_tex_feats_list), torch.cat(input_tex_coords_list))
+        shape_slats = sp.SparseTensor(torch.cat(shape_feats_list), torch.cat(shape_coords_list))
+
+        output_tex_slats = self.flow_model(x_t, t, cond, shape_slats)
+        
+        output_tex_feats_list = []
+        output_tex_coords_list = []
+        begin = 0
+        for coords_len in coords_len_list:
+            end = begin + coords_len
+            output_tex_feats_list.append(output_tex_slats.feats[begin:end])
+            output_tex_coords_list.append(output_tex_slats.coords[begin:end])
+            begin = begin + 2 * coords_len
+        output_tex_slat = sp.SparseTensor(torch.cat(output_tex_feats_list), torch.cat(output_tex_coords_list))
+        return output_tex_slat
+
 class Sampler:
     def _inference_model(self, model, x_t, tex_slat, shape_slat, input_points, coords_len_list, t, cond):
         t = torch.tensor([t*1000] * x_t.shape[0], dtype=torch.float32).cuda()
         if input_points is not None:
             return model(x_t, tex_slat, shape_slat, t, cond, input_points, coords_len_list)
-        else:
-            return model(x_t, tex_slat, shape_slat, t, cond, coords_len_list)
-
-    def _pred_to_xstart(self, x_t, t, pred):
-        return x_t - t * pred
-
-    def _xstart_to_pred(self, x_t, t, x_0):
-        return (x_t - x_0) / t
+        return model(x_t, tex_slat, shape_slat, t, cond, coords_len_list)
 
     def guidance_inference_model(self, model, x_t, tex_slat, shape_slat, input_points, coords_len_list, t, cond_dict, guidance_strength, guidance_rescale=0.0):
         if guidance_strength == 1:
@@ -108,10 +139,16 @@ class Sampler:
                 pred = self._xstart_to_pred(x_t, t, x_0)
             return pred
 
+    def _pred_to_xstart(self, x_t, t, pred):
+        return x_t - t * pred
+
+    def _xstart_to_pred(self, x_t, t, x_0):
+        return (x_t - x_0) / t
+
     def interval_inference_model(self, model, x_t, tex_slat, shape_slat, input_points, coords_len_list, t, cond_dict, sampler_params):
         guidance_strength = sampler_params['guidance_strength']
-        guidance_interval = sampler_params['guidance_interval']
-        guidance_rescale = sampler_params['guidance_rescale']
+        guidance_interval = sampler_params.get('guidance_interval', [0, 1])
+        guidance_rescale = sampler_params.get('guidance_rescale', 0.0)
         if guidance_interval[0] <= t <= guidance_interval[1]:
             return self.guidance_inference_model(model, x_t, tex_slat, shape_slat, input_points, coords_len_list, t, cond_dict, guidance_strength, guidance_rescale)
         else:
@@ -127,7 +164,7 @@ class Sampler:
     def sample(self, model, noise, tex_slat, shape_slat, input_points, coords_len_list, cond_dict, sampler_params):
         sample = noise
         steps = sampler_params['steps']
-        rescale_t = sampler_params['rescale_t']
+        rescale_t = sampler_params.get('rescale_t', 1.0)
         t_seq = np.linspace(1, 0, steps + 1)
         t_seq = rescale_t * t_seq / (1 + (rescale_t - 1) * t_seq)
         t_seq = t_seq.tolist()
@@ -265,10 +302,16 @@ class SegviGenShapeEncoderLoader:
     CATEGORY = "SegviGen/Loaders"
     def load(self, repo_id):
         import folder_paths
-        vendor = repo_id.split('/')[0]
-        local_dir = os.path.join(folder_paths.models_dir, vendor)
+        local_dir = os.path.join(folder_paths.models_dir, repo_id)
         os.makedirs(local_dir, exist_ok=True)
-        print(f"Loading TRELLIS Shape Encoder from {repo_id}...")
+        
+        # Check if local model exists to provide better logging
+        local_model_path = os.path.join(local_dir, "ckpts/shape_enc_next_dc_f16c32_fp16.safetensors")
+        if os.path.exists(local_model_path):
+            print(f"Loading TRELLIS Shape Encoder from local path: {local_model_path}")
+        else:
+            print(f"Downloading/Loading TRELLIS Shape Encoder from {repo_id}...")
+            
         model = models.from_pretrained(f"{repo_id}/ckpts/shape_enc_next_dc_f16c32_fp16", local_dir=local_dir).eval()
         return (comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.intermediate_device()),)
 
@@ -281,10 +324,16 @@ class SegviGenTexEncoderLoader:
     CATEGORY = "SegviGen/Loaders"
     def load(self, repo_id):
         import folder_paths
-        vendor = repo_id.split('/')[0]
-        local_dir = os.path.join(folder_paths.models_dir, vendor)
+        local_dir = os.path.join(folder_paths.models_dir, repo_id)
         os.makedirs(local_dir, exist_ok=True)
-        print(f"Loading TRELLIS Tex Encoder from {repo_id}...")
+        
+        # Check if local model exists to provide better logging
+        local_model_path = os.path.join(local_dir, "ckpts/tex_enc_next_dc_f16c32_fp16.safetensors")
+        if os.path.exists(local_model_path):
+            print(f"Loading TRELLIS Tex Encoder from local path: {local_model_path}")
+        else:
+            print(f"Downloading/Loading TRELLIS Tex Encoder from {repo_id}...")
+            
         model = models.from_pretrained(f"{repo_id}/ckpts/tex_enc_next_dc_f16c32_fp16", local_dir=local_dir).eval()
         return (comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.intermediate_device()),)
 
@@ -297,10 +346,16 @@ class SegviGenShapeDecoderLoader:
     CATEGORY = "SegviGen/Loaders"
     def load(self, repo_id):
         import folder_paths
-        vendor = repo_id.split('/')[0]
-        local_dir = os.path.join(folder_paths.models_dir, vendor)
+        local_dir = os.path.join(folder_paths.models_dir, repo_id)
         os.makedirs(local_dir, exist_ok=True)
-        print(f"Loading TRELLIS Shape Decoder from {repo_id}...")
+        
+        # Check if local model exists to provide better logging
+        local_model_path = os.path.join(local_dir, "ckpts/shape_dec_next_dc_f16c32_fp16.safetensors")
+        if os.path.exists(local_model_path):
+            print(f"Loading TRELLIS Shape Decoder from local path: {local_model_path}")
+        else:
+            print(f"Downloading/Loading TRELLIS Shape Decoder from {repo_id}...")
+            
         model = models.from_pretrained(f"{repo_id}/ckpts/shape_dec_next_dc_f16c32_fp16", local_dir=local_dir).eval()
         return (comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.intermediate_device()),)
 
@@ -313,10 +368,16 @@ class SegviGenTexDecoderLoader:
     CATEGORY = "SegviGen/Loaders"
     def load(self, repo_id):
         import folder_paths
-        vendor = repo_id.split('/')[0]
-        local_dir = os.path.join(folder_paths.models_dir, vendor)
+        local_dir = os.path.join(folder_paths.models_dir, repo_id)
         os.makedirs(local_dir, exist_ok=True)
-        print(f"Loading TRELLIS Tex Decoder from {repo_id}...")
+        
+        # Check if local model exists to provide better logging
+        local_model_path = os.path.join(local_dir, "ckpts/tex_dec_next_dc_f16c32_fp16.safetensors")
+        if os.path.exists(local_model_path):
+            print(f"Loading TRELLIS Tex Decoder from local path: {local_model_path}")
+        else:
+            print(f"Downloading/Loading TRELLIS Tex Decoder from {repo_id}...")
+            
         model = models.from_pretrained(f"{repo_id}/ckpts/tex_dec_next_dc_f16c32_fp16", local_dir=local_dir).eval()
         return (comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.intermediate_device()),)
 
@@ -334,9 +395,10 @@ class SegviGenTrellisConfigLoader:
         local_dir = os.path.join(folder_paths.models_dir, vendor)
         os.makedirs(local_dir, exist_ok=True)
         print(f"Loading TRELLIS Config from {repo_id}...")
-        local_path = os.path.join(local_dir, "pipeline.json")
+        local_path = os.path.join(local_dir, "TRELLIS.2-4B/pipeline.json")
         if os.path.exists(local_path):
             config_path = local_path
+            print(f"Found local config at: {config_path}")
         else:
             config_path = hf_hub_download(repo_id=repo_id, filename="pipeline.json", local_dir=local_dir)
         
@@ -349,7 +411,7 @@ class SegviGenCheckpointLoader:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "mode": (["full", "interactive"], {"tooltip": "Select 'full' for standard texturing or 'interactive' for segmentation support."}),
+                "mode": (["full", "full_w_2d_map", "interactive"], {"tooltip": "Select 'full' for standard texturing, 'full_w_2d_map' for improved 2D-guided texturing, or 'interactive' for segmentation support."}),
             }
         }
     RETURN_TYPES = ("SEG_FLOW_MODEL",)
@@ -360,29 +422,52 @@ class SegviGenCheckpointLoader:
 
     def load_checkpoint(self, mode):
         repo_id = "microsoft/TRELLIS.2-4B"
-        seg_repo = "fenghora/SegviGen"
+        seg_repo = "Aero-Ex/SegviGen"
         
         cache_key = mode
         if cache_key in self._cached_models:
             return (self._cached_models[cache_key],)
 
-        filename = "full_seg.ckpt" if mode == "full" else "interactive_seg.ckpt"
+        if mode == "full":
+            filename = "full_seg.safetensors"
+        elif mode == "full_w_2d_map":
+            filename = "full_seg_w_2d_map.safetensors"
+        else:
+            filename = "interactive_seg.safetensors"
         
         from huggingface_hub import hf_hub_download
         import folder_paths
+        from safetensors.torch import load_file
         
-        vendor = "microsoft" # Grouping with TRELLIS as per user request
+        vendor = "checkpoints" 
         local_dir = os.path.join(folder_paths.models_dir, vendor)
         os.makedirs(local_dir, exist_ok=True)
         
-        print(f"Downloading SegviGen checkpoint: {filename} to {local_dir}...")
+        print(f"Downloading SegviGen checkpoint: {filename} from {seg_repo} to {local_dir}...")
         local_ckpt_path = os.path.join(local_dir, filename)
         if os.path.exists(local_ckpt_path):
             ckpt_path = local_ckpt_path
+            print(f"Found local SegviGen checkpoint at: {ckpt_path}")
         else:
             ckpt_path = hf_hub_download(repo_id=seg_repo, filename=filename, local_dir=local_dir)
         
-        print(f"Loading {mode} model...")
+        print(f"Loading {mode} model from {ckpt_path}...")
+        if ckpt_path.endswith(".safetensors"):
+            state_dict = load_file(ckpt_path)
+        else:
+            checkpoint = torch.load(ckpt_path, map_location="cpu")
+            state_dict = checkpoint.get("state_dict", checkpoint.get("model", checkpoint))
+            # Handle the 'gen3dseg.' prefix if present in old ckpts
+            state_dict = OrderedDict([(k.replace("gen3dseg.", ""), v) for k, v in state_dict.items()])
+            
+        # The flow model needs the weights for its internal DiT
+        # In SegviGen checkpoints, the DiT weights are often nested or have specific prefixes
+        # Our conversion script flattens this, so we need to be careful.
+        
+        # In Gen3DSegFull, self.flow_model is the inner model.
+        # So we can load the state_dict directly into the wrapper
+        
+        # Load the flow model first if needed (it acts as a patcher wrapper)
         base_vendor = repo_id.split('/')[0]
         base_local_dir = os.path.join(folder_paths.models_dir, base_vendor)
         tex_slat_flow_model_raw = models.from_pretrained(f"{repo_id}/ckpts/slat_flow_imgshape2tex_dit_1_3B_512_bf16", local_dir=base_local_dir).eval()
@@ -390,9 +475,6 @@ class SegviGenCheckpointLoader:
         if mode == "interactive":
             tex_slat_flow_model_raw.forward = MethodType(flow_forward_interactive, tex_slat_flow_model_raw)
             
-        checkpoint = torch.load(ckpt_path, map_location="cpu")
-        tex_slat_flow_model_raw.load_state_dict(checkpoint["model"], strict=True)
-        
         # Wrap in ModelPatcher
         load_device = comfy.model_management.get_torch_device()
         offload_device = comfy.model_management.intermediate_device()
@@ -404,10 +486,7 @@ class SegviGenCheckpointLoader:
         else:
             gen3dseg_raw = Gen3DSegFull(tex_slat_flow_model).eval()
             
-        # The checkpoint contains the state_dict for the Gen3DSeg wrapper, not just the flow_model_raw
-        state_dict = torch.load(ckpt_path)['state_dict']
-        state_dict = OrderedDict([(k.replace("gen3dseg.", ""), v) for k, v in state_dict.items()])
-        gen3dseg_raw.load_state_dict(state_dict, strict=False) # strict=False because flow_model is a patcher inside
+        gen3dseg_raw.load_state_dict(state_dict, strict=False) 
         
         self._cached_models[cache_key] = gen3dseg_raw
         return (gen3dseg_raw,)
@@ -426,6 +505,8 @@ class SegviGenGLBToVXZ:
     CATEGORY = "SegviGen"
 
     def process(self, glb_path, vxz_output_path):
+        import folder_paths
+        glb_path = folder_paths.get_annotated_filepath(glb_path)
         asset = trimesh.load(glb_path, force='scene')
         asset = preprocess_scene_textures(asset)
         aabb = asset.bounding_box.bounds
@@ -505,6 +586,9 @@ class SegviGenVXZToSlat:
         with torch.no_grad():
             tex_slat = tex_encoder.model(sp.SparseTensor(attr, coords))
             
+        #move output to CPU and clear cache
+        shape_slat = shape_slat.cpu()
+        tex_slat = tex_slat.cpu()
         comfy.model_management.soft_empty_cache()
         return (shape_slat, tex_slat, meshes, subs)
 
@@ -606,23 +690,20 @@ class SegviGenImageToCond:
             import folder_paths
             repo_id = "Aero-Ex/Dinov3"
             subfolder = "facebook/dinov3-vitl16-pretrain-lvd1689m"
-            vendor = "facebook" # Keep saving to models/facebook as requested
-            local_dir = os.path.join(folder_paths.models_dir, vendor)
-            os.makedirs(local_dir, exist_ok=True)
+            local_dir = folder_paths.models_dir # Point to the base models directory
             
-            print(f"Downloading/Loading DinoV3 (Mirror: {repo_id}/{subfolder}) to {local_dir}...")
             from huggingface_hub import hf_hub_download
             
             local_config = os.path.join(local_dir, f"{subfolder}/config.json")
-            if os.path.exists(local_config):
-                config_path = local_config
-            else:
-                config_path = hf_hub_download(repo_id=repo_id, filename=f"{subfolder}/config.json", local_dir=local_dir)
-                
             local_model = os.path.join(local_dir, f"{subfolder}/model.safetensors")
-            if os.path.exists(local_model):
+            
+            if os.path.exists(local_config) and os.path.exists(local_model):
+                print(f"Loading DinoV3 (Mirror: {repo_id}/{subfolder}) from local path...")
+                config_path = local_config
                 model_path = local_model
             else:
+                print(f"Downloading DinoV3 (Mirror: {repo_id}/{subfolder}) to {os.path.join(local_dir, 'facebook')}...")
+                config_path = hf_hub_download(repo_id=repo_id, filename=f"{subfolder}/config.json", local_dir=local_dir)
                 model_path = hf_hub_download(repo_id=repo_id, filename=f"{subfolder}/model.safetensors", local_dir=local_dir)
                 
             cond_model_raw = DinoV3FeatureExtractor(model_name=repo_id, local_dir=local_dir, subfolder=subfolder).eval()
@@ -693,8 +774,10 @@ class SegviGenSampler:
                 "shape_slat": ("SHAPE_SLAT",),
                 "tex_slat": ("TEX_SLAT",),
                 "conditioning": ("CONDITIONING",),
+                "subs": ("SUBS",),
                 "steps": ("INT", {"default": 50, "min": 1, "max": 1000}),
                 "guidance_strength": ("FLOAT", {"default": 7.5, "min": 0.0, "max": 100.0}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             },
             "optional": {
                 "input_points": ("INPUT_POINTS",),
@@ -704,9 +787,37 @@ class SegviGenSampler:
     FUNCTION = "sample"
     CATEGORY = "SegviGen/Process"
  
-    def sample(self, flow_model, trellis_config, shape_slat, tex_slat, conditioning, steps, guidance_strength, input_points=None):
+    def sample(self, flow_model, trellis_config, shape_slat, tex_slat, conditioning, subs, steps, guidance_strength, seed, input_points=None):
+        torch.manual_seed(seed)
         pipeline_args = trellis_config
-        device = shape_slat.feats.device
+        
+       
+        # 1. Coordinate length calculation
+        # If subs is a list, check if it's resolution-stage subs or part subs
+        if isinstance(subs, list):
+            # Attempt to use .coords on each sub
+            try:
+                lens = [sub.coords.shape[0] for sub in subs]
+                # If the sum doesn't match the total shape, these are likely resolution stages
+                if sum(lens) != shape_slat.coords.shape[0]:
+                    coords_len_list = [shape_slat.coords.shape[0]]
+                else:
+                    coords_len_list = lens
+            except (AttributeError, TypeError):
+                # Fallback if elements don't have .coords
+                coords_len_list = [shape_slat.coords.shape[0]]
+        else:
+            coords_len_list = [shape_slat.coords.shape[0]]
+
+        # 2. Flow model wrapper
+        # The flow_model passed in is already Gen3DSegFull or Gen3DSegInteractive
+        gen3dseg = flow_model
+        
+        # 3. Standard memory hygiene & movement
+        device = comfy.model_management.get_torch_device()
+        shape_slat = shape_slat.cuda()
+        tex_slat = tex_slat.cuda()
+        conditioning = {k: v.cuda() if torch.is_tensor(v) else v for k, v in conditioning.items()}
         
         shape_std = torch.tensor(pipeline_args['shape_slat_normalization']['std'])[None].to(device)
         shape_mean = torch.tensor(pipeline_args['shape_slat_normalization']['mean'])[None].to(device)
@@ -716,21 +827,23 @@ class SegviGenSampler:
         norm_shape_slat = ((shape_slat - shape_mean) / shape_std)
         norm_tex_slat = ((tex_slat - tex_mean) / tex_std)
         
-        coords_len_list = [shape_slat.coords.shape[0]]
         noise = sp.SparseTensor(torch.randn_like(norm_tex_slat.feats), shape_slat.coords)
         
+        # 4. Use official Sampler and Params
         sampler = Sampler()
         sampler_params = pipeline_args['tex_slat_sampler']['params'].copy()
         sampler_params['steps'] = steps
         sampler_params['guidance_strength'] = guidance_strength
         
-        # Flow model acts as a wrapper around the actual flow patcher
-        flow_model_patcher = flow_model.flow_model
         # Ensure the model is on GPU
-        comfy.model_management.load_models_gpu([flow_model_patcher])
+        comfy.model_management.load_models_gpu([flow_model.flow_model])
         
-        output_tex_slat = sampler.sample(flow_model, noise, norm_tex_slat, norm_shape_slat, input_points, coords_len_list, conditioning, sampler_params)
+        # 5. Execute sampling with official interleaving
+        output_tex_slat = sampler.sample(gen3dseg, noise, norm_tex_slat, norm_shape_slat, input_points, coords_len_list, conditioning, sampler_params)
         output_tex_slat = output_tex_slat * tex_std + tex_mean
+        
+        # 6. Post-processing cleanup
+        output_tex_slat = output_tex_slat.cpu()
         comfy.model_management.soft_empty_cache()
         return (output_tex_slat,)
 
@@ -749,10 +862,29 @@ class SegviGenSlatToVoxel:
     CATEGORY = "SegviGen"
 
     def decode(self, tex_slat, tex_decoder, subs):
+        # 1. Exhaustively clear VRAM by unloading ALL other models
+        import gc
+        comfy.model_management.unload_all_models()
+        comfy.model_management.soft_empty_cache()
+        gc.collect()
+        
+        # 2. Specifically load only the decoder
         comfy.model_management.load_models_gpu([tex_decoder])
+        
+        # 3. Move input to GPU only for the duration of inference
+        # If lowvram, this is essential
+        tex_slat = tex_slat.cuda()
+        
         with torch.no_grad():
             tex_voxels = tex_decoder.model(tex_slat, guide_subs=subs) * 0.5 + 0.5
+            
+        # 4. Immediate cleanup: Move input and output back to CPU
+        tex_slat = tex_slat.cpu()
+        tex_voxels = tex_voxels.cpu()
+        
         comfy.model_management.soft_empty_cache()
+        gc.collect()
+        
         return (tex_voxels,)
 
 class SegviGenVoxelToGLB:
@@ -764,21 +896,41 @@ class SegviGenVoxelToGLB:
                 "tex_voxels": ("TEX_VOXELS", {"tooltip": "Decoded texture voxels."}),
                 "output_path": ("STRING", {"default": "output.glb", "tooltip": "Output GLB filename."}),
                 "resolution": ("INT", {"default": 512, "tooltip": "Voxel grid resolution."}),
+                "visualization_mode": (["Appearance", "Segmentation"], {"default": "Appearance", "tooltip": "Choose between realistic textures or solid segmentation colors."}),
             }
         }
     RETURN_TYPES = ("STRING",)
     FUNCTION = "export"
     CATEGORY = "SegviGen"
 
-    def export(self, meshes, tex_voxels, output_path, resolution):
+    def export(self, meshes, tex_voxels, output_path, resolution, visualization_mode):
+        import cumesh.remeshing
+        if hasattr(cumesh.remeshing, 'remesh_narrow_band_dc_quad'):
+            cumesh.remeshing.remesh_narrow_band_dc = cumesh.remeshing.remesh_narrow_band_dc_quad
+            
         pbr_attr_layout = {
             'base_color': slice(0, 3),
             'metallic': slice(3, 4),
             'roughness': slice(4, 5),
             'alpha': slice(5, 6),
         }
+        
+        v = tex_voxels
+        # 1. Split the combined tex_voxels SparseTensor into parts matching the meshes
+        # SegviGen concatenates all parts into one big SparseTensor during sampling/decoding.
+        # We must split them back using the point counts from each mesh.
+        tex_parts = []
+        begin = 0
+        for m in meshes:
+            count = m.coords.shape[0] if hasattr(m, 'coords') else len(m.vertices) # Fallback
+            end = begin + count
+            p_feats = tex_voxels.feats[begin:end]
+            p_coords = tex_voxels.coords[begin:end]
+            tex_parts.append(sp.SparseTensor(p_feats, p_coords))
+            begin = end
+        
         out_mesh = []
-        for m, v in zip(meshes, tex_voxels):
+        for i, (m, v) in enumerate(zip(meshes, tex_parts)):
             m.fill_holes()
             out_mesh.append(
                 MeshWithVoxel(
@@ -791,34 +943,72 @@ class SegviGenVoxelToGLB:
                     layout=pbr_attr_layout
                 )
             )
-        mesh = out_mesh[0]
-        mesh.simplify(10000000)
-        glb = o_voxel.postprocess.to_glb(
-            vertices            =   mesh.vertices,
-            faces               =   mesh.faces,
-            attr_volume         =   mesh.attrs,
-            coords              =   mesh.coords,
-            attr_layout         =   mesh.layout,
-            voxel_size          =   mesh.voxel_size,
-            aabb                =   [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-            decimation_target   =   100000,
-            texture_size        =   4096,
-            remesh              =   True,
-            remesh_band         =   1,
-            remesh_project      =   0,
-            verbose             =   True
-        )
-        glb.export(output_path)
+
+        # Process all meshes for segmentation support
+        import trimesh
+        final_scene = trimesh.Scene()
+        
+        for i, mesh in enumerate(out_mesh):
+            # Standard memory hygiene before each part
+            comfy.model_management.soft_empty_cache()
+            
+            # Use to_glb for both modes to ensure high-quality remeshed geometry
+            # For Segmentation, we use a tiny texture size to save speed/VRAM
+            tex_size = 2048 if visualization_mode == "Appearance" else 64
+            
+            device = comfy.model_management.get_torch_device()
+            v_t = mesh.vertices.to(device)
+            f_t = mesh.faces.to(device)
+            c_t = mesh.coords.to(device)
+            a_t = mesh.attrs.to(device)
+            
+            p_glb = o_voxel.postprocess.to_glb(
+                vertices            =   v_t,
+                faces               =   f_t,
+                attr_volume         =   a_t,
+                coords              =   c_t,
+                attr_layout         =   mesh.layout,
+                voxel_size          =   mesh.voxel_size,
+                aabb                =   [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
+                decimation_target   =   1000000,
+                texture_size        =   tex_size,
+                remesh              =   True,
+                remesh_band         =   1,
+                remesh_project      =   0
+            )
+            
+            if visualization_mode == "Segmentation":
+                # Override the baked textures with solid colors
+                import random
+                color = (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255), 255)
+                # set_mesh_solid_pbr will strip existing visual and apply solid PBR
+                set_mesh_solid_pbr(p_glb, rgba_uint8=color, emissive=True)
+            
+            # Apply default +90 degree X rotation to stand the model upright
+            import numpy as np
+            rotation_matrix = trimesh.transformations.euler_matrix(np.radians(90), 0, 0)
+            p_glb.apply_transform(rotation_matrix)
+            
+            final_scene.add_geometry(p_glb, node_name=f"part_{i}")
+
+        # Use ComfyUI standard output directory
+        import folder_paths
+        output_dir = folder_paths.get_output_directory()
+        full_output_path = os.path.join(output_dir, output_path)
+        
+        final_scene.export(full_output_path)
         comfy.model_management.soft_empty_cache()
-        return (output_path,)
+        return (full_output_path,)
 
 class SegviGenLoadGLB:
     @classmethod
     def INPUT_TYPES(s):
         import folder_paths
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.lower().endswith((".glb", ".gltf"))]
         return {
             "required": {
-                "glb_file": (folder_paths.get_filename_list("input"), {"tooltip": "Select a GLB from the ComfyUI input directory."}),
+                "glb_file": (sorted(files), {"tooltip": "Select a GLB from the ComfyUI input directory."}),
             }
         }
     RETURN_TYPES = ("STRING",)
@@ -827,9 +1017,7 @@ class SegviGenLoadGLB:
 
     def load_glb(self, glb_file):
         import folder_paths
-        path = folder_paths.get_annotation_path(glb_file, "input")
-        if path is None:
-            path = folder_paths.get_full_path("input", glb_file)
+        path = folder_paths.get_annotated_filepath(glb_file)
         return (path,)
 
 class SegviGenGLBRenderer:
@@ -848,6 +1036,8 @@ class SegviGenGLBRenderer:
     CATEGORY = "SegviGen"
 
     def render(self, glb_path, transforms_path, output_image_path, resolution):
+        import folder_paths
+        glb_path = folder_paths.get_annotated_filepath(glb_path)
         render_from_transforms(glb_path, transforms_path, output_image_path, resolution=resolution)
         return (output_image_path,)
 
@@ -865,6 +1055,8 @@ class SegviGenGLBToParts:
     CATEGORY = "SegviGen"
 
     def split(self, glb_path, output_dir):
+        import folder_paths
+        glb_path = folder_paths.get_annotated_filepath(glb_path)
         scene = trimesh.load(glb_path, force='scene')
         os.makedirs(output_dir, exist_ok=True)
         geometries = list(scene.geometry.values())

@@ -7,26 +7,19 @@ import numpy as np
 from PIL import Image
 
 
-class DinoV2FeatureExtractor:
+class DinoV2FeatureExtractor(torch.nn.Module):
     """
     Feature extractor for DINOv2 models.
     """
     def __init__(self, model_name: str):
+        super().__init__()
         self.model_name = model_name
         self.model = torch.hub.load('facebookresearch/dinov2', model_name, pretrained=True)
         self.model.eval()
         self.transform = transforms.Compose([
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-
-    def to(self, device):
-        self.model.to(device)
-
-    def cuda(self):
-        self.model.cuda()
-
-    def cpu(self):
-        self.model.cpu()
+    
     
     @torch.no_grad()
     def __call__(self, image: Union[torch.Tensor, List[Image.Image]]) -> torch.Tensor:
@@ -56,27 +49,25 @@ class DinoV2FeatureExtractor:
         return patchtokens
     
 
-class DinoV3FeatureExtractor:
+class DinoV3FeatureExtractor(torch.nn.Module):
     """
     Feature extractor for DINOv3 models.
     """
     def __init__(self, model_name: str, image_size=512, local_dir: str = None, subfolder: str = None):
+        super().__init__()
         self.model_name = model_name
-        self.model = DINOv3ViTModel.from_pretrained(model_name, local_dir=local_dir, subfolder=subfolder)
+        import os
+        if local_dir and subfolder and os.path.exists(os.path.join(local_dir, subfolder)):
+            model_path = os.path.join(local_dir, subfolder)
+            self.model = DINOv3ViTModel.from_pretrained(model_path)
+        else:
+            self.model = DINOv3ViTModel.from_pretrained(model_name, subfolder=subfolder)
         self.model.eval()
         self.image_size = image_size
         self.transform = transforms.Compose([
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-
-    def to(self, device):
-        self.model.to(device)
-
-    def cuda(self):
-        self.model.cuda()
-
-    def cpu(self):
-        self.model.cpu()
+    
 
     def extract_features(self, image: torch.Tensor) -> torch.Tensor:
         image = image.to(self.model.embeddings.patch_embeddings.weight.dtype)

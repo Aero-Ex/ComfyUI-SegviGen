@@ -21,7 +21,7 @@ A ComfyUI implementation of SegviGen, providing precise 3D texturing and interac
 
 - **Automated Model Downloading**: All model components (Trellis base, SegviGen checkpoints, BiRefNet, DinoV3) are automatically downloaded on first use.
 - **Decoupled Loaders**: Individual control over Shape/Tex Encoders and Decoders for optimal VRAM management.
-- **Advanced Memory Management**: Built-in support for DMA-based loading (`load_torch_file`), RAM-safe initialization (`init_empty_weights`), and proactive cache clearing.
+- **Memory Management**: Built-in support for DMA-based loading (`load_torch_file`), RAM-safe initialization (`init_empty_weights`), and proactive cache clearing.
 - **Granular Pipeline**: Modular nodes for preprocessing, conditioning, sampling, and post-processing (VXZ, Latent Slats, Voxel, GLB).
 
 ## Node Overview
