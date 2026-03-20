@@ -11,6 +11,8 @@ from tqdm import tqdm
 from collections import OrderedDict
 import random
 from types import MethodType
+import cv2
+import hashlib
 
 # ComfyUI Model Management
 import comfy.model_management
@@ -28,6 +30,7 @@ from .trellis2.modules.utils import manual_cast
 import o_voxel
 import nvdiffrast.torch as nr
 from trimesh.visual.material import PBRMaterial
+from flex_gemm.ops.grid_sample import grid_sample_3d
 
 
 class Sampler:
@@ -413,8 +416,6 @@ class SegviGenCheckpointLoader:
     FUNCTION = "load_checkpoint"
     CATEGORY = "SegviGen"
 
-    _cached_models = {}
-
     def load_checkpoint(self, mode):
         print(f"[SegviGen] CheckpointLoader: mode={mode}")
         repo_id = "microsoft/TRELLIS.2-4B"
@@ -510,6 +511,17 @@ class SegviGenGLBToVXZ:
         scale = 0.99999 / (aabb[1] - aabb[0]).max()
         asset.apply_translation(-center)
         asset.apply_scale(scale)
+        
+        # Coordinate Swap: Y-up to Z-up (Identical to Trellis2 preprocess_mesh)
+        # y_new = -z_old, z_new = y_old
+        R = np.array([
+            [1, 0, 0, 0],
+            [0, 0, -1, 0],
+            [0, 1, 0, 0],
+            [0, 0, 0, 1]
+        ])
+        asset.apply_transform(R)
+        
         mesh = asset.to_mesh()
         vertices = torch.from_numpy(mesh.vertices).float()
         faces = torch.from_numpy(mesh.faces).long()
@@ -720,6 +732,7 @@ class SegviGenImageToCond:
     FUNCTION = "get_cond_emb"
     CATEGORY = "SegviGen"
 
+
     def get_cond_emb(self, image, dino_model):
         comfy.model_management.load_models_gpu([dino_model])
         model_on_device = dino_model.model
@@ -927,13 +940,14 @@ class SegviGenVoxelToGLB:
         # slat_to_glb function directly
         glb = slat_to_glb(meshes, tex_parts, resolution=resolution)
 
-        # transformation matrix
+        # Inverse transformation to restore original orientation (Z-up back to Y-up)
+        # y_final = z_in, z_final = -y_in
         import numpy as np
         T = np.eye(4, dtype=np.float64)
         T[:3, :3] = np.array([
             [1,  0,  0],
-            [0,  0, -1],
-            [0,  1,  0],
+            [0,  0,  1],
+            [0, -1,  0],
         ], dtype=np.float64)
         if hasattr(glb, 'apply_transform') and callable(glb.apply_transform):
             glb.apply_transform(T)
@@ -1002,6 +1016,87 @@ class SegviGenSplitColorGLB:
         )
         return (out_glb_path,)
 
+def pil2tensor(image):
+    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0)
+
+class SegviGenBake:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "glb_path": ("STRING", {"default": ""}),
+                "tex_voxels": ("TEX_VOXELS",),
+                "output_name": ("STRING", {"default": "baked_output.glb"}),
+                "resolution": ("INT", {"default": 512, "min": 128, "max": 2048, "step": 128}),
+                "texture_size": ("INT", {"default": 2048, "min": 512, "max": 8192, "step": 512}),
+            }
+        }
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("glb_path",)
+    FUNCTION = "bake"
+    CATEGORY = "SegviGen"
+
+
+
+    def bake(self, glb_path, tex_voxels, output_name, resolution, texture_size):
+        import folder_paths
+        import numpy as np
+        import trimesh
+        import nvdiffrast.torch as nr
+        import cv2
+        import hashlib
+        from PIL import Image
+        from trimesh.visual.material import PBRMaterial
+        from flex_gemm.ops.grid_sample import grid_sample_3d
+
+        print(f"[SegviGen] Bake: baking onto {glb_path} → {output_name}")
+        glb_path = folder_paths.get_annotated_filepath(glb_path)
+        asset = trimesh.load(glb_path, force='scene')
+        original_mesh = asset.to_mesh()
+        
+        # Normalize and Rotate to models's Z-up Space
+        mesh = original_mesh.copy()
+        aabb = mesh.bounding_box.bounds
+        mesh.apply_translation(-(aabb[0] + aabb[1]) / 2)
+        mesh.apply_scale(0.99999 / (aabb[1] - aabb[0]).max())
+        mesh.apply_transform(np.array([[1,0,0,0],[0,0,-1,0],[0,1,0,0],[0,0,0,1]])) # Y-to-Z swap
+        
+        device = comfy.model_management.get_torch_device()
+        v = torch.from_numpy(mesh.vertices).float().to(device)
+        f = torch.from_numpy(mesh.faces).int().to(device)
+        
+        if not (hasattr(mesh, 'visual') and hasattr(mesh.visual, 'uv') and mesh.visual.uv is not None):
+            raise ValueError("[SegviGen] Bake: No UVs found on original mesh! Please unwrap your model first.")
+            
+        uvs = torch.from_numpy(mesh.visual.uv).float().to(device)
+        uvs[:, 1] = 1 - uvs[:, 1] # Flip V for nvdiffrast
+        
+        # Rasterize and Sample Colors
+        ctx = nr.RasterizeCudaContext()
+        uvs_clip = torch.cat([uvs * 2 - 1, torch.zeros_like(uvs[:, :1]), torch.ones_like(uvs[:, :1])], -1).unsqueeze(0)
+        rast, _ = nr.rasterize(ctx, uvs_clip, f, [texture_size, texture_size])
+        pos = nr.interpolate(v.unsqueeze(0), rast, f)[0][0]
+        mask = rast[0, ..., 3] > 0
+        
+        attrs = torch.zeros(texture_size, texture_size, 3, device=device)
+        attrs[mask] = grid_sample_3d(
+            tex_voxels.feats.to(device), tex_voxels.coords.to(device),
+            shape=torch.Size([*tex_voxels.shape, *tex_voxels.spatial_shape]),
+            grid=((pos[mask] - torch.tensor([-0.5,-0.5,-0.5], device=device)) * resolution).reshape(1, -1, 3), # simplified voxel check
+            mode='trilinear',
+        )[..., :3]
+        
+        # Post-process: Inpaint and Export
+        img = np.clip(attrs.cpu().numpy() * 255, 0, 255).astype(np.uint8)
+        img = cv2.inpaint(img, (~mask.cpu().numpy()).astype(np.uint8), 3, cv2.INPAINT_TELEA)
+        
+        out_mesh = original_mesh.copy()
+        out_mesh.visual = trimesh.visual.TextureVisuals(uv=original_mesh.visual.uv, material=PBRMaterial(baseColorTexture=Image.fromarray(img)))
+        
+        full_out_path = os.path.join(folder_paths.get_output_directory(), output_name)
+        out_mesh.export(full_out_path)
+        return (full_out_path,)
+
 NODE_CLASS_MAPPINGS = {
     "SegviGenEncoderLoader": SegviGenEncoderLoader,
     "SegviGenDecoderLoader": SegviGenDecoderLoader,
@@ -1019,5 +1114,10 @@ NODE_CLASS_MAPPINGS = {
     "SegviGenVoxelToGLB": SegviGenVoxelToGLB,
     "SegviGenLoadGLB": SegviGenLoadGLB,
     "SegviGenSplitColorGLB": SegviGenSplitColorGLB,
+    "SegviGenBake": SegviGenBake,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SegviGenBake": "SegviGen - Bake to Original Mesh",
 }
 
