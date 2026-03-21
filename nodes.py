@@ -501,8 +501,10 @@ class SegviGenGLBToVXZ:
     CATEGORY = "SegviGen"
 
     def process(self, glb_path, vxz_output_path):
-        print(f"[SegviGen] GLBToVXZ: converting {glb_path} → {vxz_output_path}")
         import folder_paths
+        if not os.path.isabs(vxz_output_path):
+            vxz_output_path = os.path.join(folder_paths.get_output_directory(), vxz_output_path)
+        print(f"[SegviGen] GLBToVXZ: converting {glb_path} → {vxz_output_path}")
         glb_path = folder_paths.get_annotated_filepath(glb_path)
         asset = trimesh.load(glb_path, force='scene')
         asset = preprocess_scene_textures(asset)
@@ -562,14 +564,23 @@ class SegviGenVXZToSlat:
                 "shape_encoder": ("TRELLIS_SHAPE_ENCODER",),
                 "tex_encoder": ("TRELLIS_TEX_ENCODER",),
                 "shape_decoder": ("TRELLIS_SHAPE_DECODER",),
+                "use_tiled_encoder": ("BOOLEAN", {"default": False, "tooltip": "Use tiled encoding to save VRAM."}),
+                "encoder_tile_size": ("INT", {"default": 128, "min": 32, "max": 1024, "step": 32}),
+                "encoder_overlap": ("INT", {"default": 24, "min": 0, "max": 256, "step": 4}),
+                "low_vram": ("BOOLEAN", {"default": False, "tooltip": "Enable chunked point-wise operations and frequent cache clearing."}),
             }
         }
     RETURN_TYPES = ("SHAPE_SLAT", "TEX_SLAT", "MESHES", "SUBS")
     FUNCTION = "process"
     CATEGORY = "SegviGen"
 
-    def process(self, vxz_path, shape_encoder, tex_encoder, shape_decoder):
-        print(f"[SegviGen] VXZToSlat: processing {vxz_path}")
+    def process(self, vxz_path, shape_encoder, tex_encoder, shape_decoder, use_tiled_encoder, encoder_tile_size, encoder_overlap, low_vram):
+        import folder_paths
+        vxz_path = folder_paths.get_annotated_filepath(vxz_path)
+        print(f"[SegviGen] VXZToSlat: processing '{vxz_path}'")
+        if not vxz_path or not os.path.exists(vxz_path):
+             raise ValueError(f"Invalid or missing VXZ path: '{vxz_path}'")
+        
         # Load tensors to the model's load device via patcher
         load_device = shape_encoder.load_device
         
@@ -599,8 +610,14 @@ class SegviGenVXZToSlat:
             attr = attr.to(tex_load_device)
             coords = coords.to(tex_load_device)
         comfy.model_management.load_models_gpu([tex_encoder])
+        tex_encoder.model.low_vram = low_vram
         with torch.no_grad():
-            tex_slat = tex_encoder.model(sp.SparseTensor(attr, coords))
+            tex_slat = tex_encoder.model(
+                sp.SparseTensor(attr, coords),
+                use_tiled=use_tiled_encoder,
+                tile_size=encoder_tile_size,
+                overlap=encoder_overlap
+            )
             
         # Stash intermediate slats on intermediate_device() (CPU normally, GPU on --gpu-only)
         offload_to = comfy.model_management.intermediate_device()
@@ -873,20 +890,35 @@ class SegviGenSlatToVoxel:
                 "tex_slat": ("OUTPUT_TEX_SLAT", {"tooltip": "Generated texture slats."}),
                 "tex_decoder": ("TRELLIS_TEX_DECODER",),
                 "subs": ("SUBS", {"tooltip": "Voxel sub-resolution information."}),
+                "use_tiled_decoder": ("BOOLEAN", {"default": False, "tooltip": "Use tiled decoding to save VRAM."}),
+                "decoder_tile_size": ("INT", {"default": 120, "min": 32, "max": 1024, "step": 8}),
+                "decoder_overlap": ("INT", {"default": 48, "min": 0, "max": 256, "step": 8}),
+                "low_vram": ("BOOLEAN", {"default": False, "tooltip": "Enable chunked point-wise operations and frequent cache clearing."}),
             }
         }
     RETURN_TYPES = ("TEX_VOXELS",)
     FUNCTION = "decode"
     CATEGORY = "SegviGen"
 
-    def decode(self, tex_slat, tex_decoder, subs):
+    def decode(self, tex_slat, tex_decoder, subs, use_tiled_decoder, decoder_tile_size, decoder_overlap, low_vram):
         print(f"[SegviGen] SlatToVoxel: decoding tex_slat ({tex_slat.coords.shape[0]} voxels)...")
         load_device = tex_decoder.load_device
         comfy.model_management.load_models_gpu([tex_decoder])
         tex_slat = tex_slat.to(load_device)
+        tex_decoder.model.low_vram = low_vram
         
         with torch.no_grad():
-            tex_voxels = tex_decoder.model(tex_slat, guide_subs=subs) * 0.5 + 0.5
+            if use_tiled_decoder:
+                tex_voxels = tex_decoder.model._tiled_forward(
+                    tex_slat, 
+                    guide_subs=subs, 
+                    tile_size=decoder_tile_size, 
+                    overlap=decoder_overlap
+                )
+            else:
+                tex_voxels = tex_decoder.model(tex_slat, guide_subs=subs)
+            
+            tex_voxels = tex_voxels * 0.5 + 0.5
             
         # Move slat and output to intermediate_device (CPU normally, GPU on --gpu-only)
         offload_to = comfy.model_management.intermediate_device()
@@ -1027,8 +1059,7 @@ class SegviGenBake:
                 "glb_path": ("STRING", {"default": ""}),
                 "tex_voxels": ("TEX_VOXELS",),
                 "output_name": ("STRING", {"default": "baked_output.glb"}),
-                "resolution": ("INT", {"default": 512, "min": 128, "max": 2048, "step": 128}),
-                "texture_size": ("INT", {"default": 2048, "min": 512, "max": 8192, "step": 512}),
+                "texture_size": ("INT", {"default": 2048, "min": 512, "max": 4096, "step": 512}),
             }
         }
     RETURN_TYPES = ("STRING",)
@@ -1038,7 +1069,7 @@ class SegviGenBake:
 
 
 
-    def bake(self, glb_path, tex_voxels, output_name, resolution, texture_size):
+    def bake(self, glb_path, tex_voxels, output_name, texture_size):
         import folder_paths
         import numpy as np
         import trimesh
@@ -1054,44 +1085,75 @@ class SegviGenBake:
         asset = trimesh.load(glb_path, force='scene')
         original_mesh = asset.to_mesh()
         
-        # Normalize and Rotate to models's Z-up Space
+        # Use actual voxel resolution
+        resolution = tex_voxels.spatial_shape[0]
+        
+        # Normalize and Rotate to match VXZ space
         mesh = original_mesh.copy()
         aabb = mesh.bounding_box.bounds
         mesh.apply_translation(-(aabb[0] + aabb[1]) / 2)
         mesh.apply_scale(0.99999 / (aabb[1] - aabb[0]).max())
-        mesh.apply_transform(np.array([[1,0,0,0],[0,0,-1,0],[0,1,0,0],[0,0,0,1]])) # Y-to-Z swap
+        mesh.apply_transform(np.array([[1,0,0,0],[0,0,-1,0],[0,1,0,0],[0,0,0,1]])) # Y-to-Z
         
         device = comfy.model_management.get_torch_device()
         v = torch.from_numpy(mesh.vertices).float().to(device)
         f = torch.from_numpy(mesh.faces).int().to(device)
         
-        if not (hasattr(mesh, 'visual') and hasattr(mesh.visual, 'uv') and mesh.visual.uv is not None):
-            raise ValueError("[SegviGen] Bake: No UVs found on original mesh! Please unwrap your model first.")
+        if not (hasattr(original_mesh, 'visual') and hasattr(original_mesh.visual, 'uv') and original_mesh.visual.uv is not None):
+            raise ValueError("[SegviGen] Bake: No UVs found on mesh. Use a mesh with UV coordinates.")
             
-        uvs = torch.from_numpy(mesh.visual.uv).float().to(device)
+        uvs = torch.from_numpy(original_mesh.visual.uv).float().to(device)
         uvs[:, 1] = 1 - uvs[:, 1] # Flip V for nvdiffrast
         
-        # Rasterize and Sample Colors
+        # Rasterize and Sample
         ctx = nr.RasterizeCudaContext()
         uvs_clip = torch.cat([uvs * 2 - 1, torch.zeros_like(uvs[:, :1]), torch.ones_like(uvs[:, :1])], -1).unsqueeze(0)
         rast, _ = nr.rasterize(ctx, uvs_clip, f, [texture_size, texture_size])
         pos = nr.interpolate(v.unsqueeze(0), rast, f)[0][0]
         mask = rast[0, ..., 3] > 0
         
-        attrs = torch.zeros(texture_size, texture_size, 3, device=device)
-        attrs[mask] = grid_sample_3d(
+        # Sample all 6 channels: [RGB, Metallic, Roughness, Alpha]
+        sampled_attrs = torch.zeros(texture_size, texture_size, 6, device=device)
+        grid_coords = ((pos[mask] + 0.5) * resolution).reshape(1, -1, 3)
+        
+        sampled_attrs[mask] = grid_sample_3d(
             tex_voxels.feats.to(device), tex_voxels.coords.to(device),
             shape=torch.Size([*tex_voxels.shape, *tex_voxels.spatial_shape]),
-            grid=((pos[mask] - torch.tensor([-0.5,-0.5,-0.5], device=device)) * resolution).reshape(1, -1, 3), # simplified voxel check
+            grid=grid_coords,
             mode='trilinear',
-        )[..., :3]
+        )
         
-        # Post-process: Inpaint and Export
-        img = np.clip(attrs.cpu().numpy() * 255, 0, 255).astype(np.uint8)
-        img = cv2.inpaint(img, (~mask.cpu().numpy()).astype(np.uint8), 3, cv2.INPAINT_TELEA)
+        # Map to 0-255 and Inpaint
+        mask_np = mask.cpu().numpy()
+        inpaint_mask = (~mask_np).astype(np.uint8)
+        
+        def finalize_map(data, is_grayscale=False):
+            img = np.clip(data.cpu().numpy() * 255, 0, 255).astype(np.uint8)
+            mode = cv2.INPAINT_TELEA
+            if is_grayscale:
+                return cv2.inpaint(img, inpaint_mask, 1, mode)
+            return cv2.inpaint(img, inpaint_mask, 3, mode)
+
+        base_color = finalize_map(sampled_attrs[..., 0:3])
+        metallic = finalize_map(sampled_attrs[..., 3], is_grayscale=True)
+        roughness = finalize_map(sampled_attrs[..., 4], is_grayscale=True)
+        alpha = finalize_map(sampled_attrs[..., 5], is_grayscale=True)
+        
+        # Build textures
+        diffuse_tex = np.concatenate([base_color, alpha[..., None]], axis=-1)
+        # GLTF 2.0: Roughness = G, Metallic = B
+        mr_tex = np.stack([np.zeros_like(metallic), roughness, metallic], axis=-1)
         
         out_mesh = original_mesh.copy()
-        out_mesh.visual = trimesh.visual.TextureVisuals(uv=original_mesh.visual.uv, material=PBRMaterial(baseColorTexture=Image.fromarray(img)))
+        material = PBRMaterial(
+            baseColorTexture=Image.fromarray(diffuse_tex),
+            metallicRoughnessTexture=Image.fromarray(mr_tex),
+            metallicFactor=1.0,
+            roughnessFactor=1.0,
+            alphaMode='OPAQUE',
+            doubleSided=True,
+        )
+        out_mesh.visual = trimesh.visual.TextureVisuals(uv=original_mesh.visual.uv, material=material)
         
         full_out_path = os.path.join(folder_paths.get_output_directory(), output_name)
         out_mesh.export(full_out_path)
