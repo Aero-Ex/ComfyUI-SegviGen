@@ -1,15 +1,15 @@
 {
   "id": "7b0b9163-a3ba-4d7a-998a-9ff5fd74aaf6",
   "revision": 0,
-  "last_node_id": 67,
-  "last_link_id": 71,
+  "last_node_id": 96,
+  "last_link_id": 123,
   "nodes": [
     {
       "id": 5,
       "type": "SegviGenTrellisConfigLoader",
       "pos": [
-        -85.61870061335549,
-        617.7724819059852
+        -85.51417085098592,
+        617.8255978780669
       ],
       "size": [
         378,
@@ -47,8 +47,8 @@
       "id": 6,
       "type": "SegviGenCheckpointLoader",
       "pos": [
-        -91.48315901566536,
-        802.6984353422108
+        -91.4718406269809,
+        802.8803534998533
       ],
       "size": [
         378,
@@ -86,8 +86,8 @@
       "id": 10,
       "type": "LoadImage",
       "pos": [
-        -631.0568016261066,
-        982.0205491092426
+        643.0098422999067,
+        1085.3167548396239
       ],
       "size": [
         695.1333618164062,
@@ -102,7 +102,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            62
+            119
           ]
         },
         {
@@ -122,7 +122,7 @@
         }
       },
       "widgets_values": [
-        "2ae5cf2990c34e7db704f677de8de74c.png",
+        "226887c32c7a4a1f97de694e9bdbd10d.png",
         "image"
       ]
     },
@@ -130,21 +130,21 @@
       "id": 12,
       "type": "SegviGenImageToCond",
       "pos": [
-        486.10084887129756,
-        155.30567346260523
+        486.198834553034,
+        155.26251136530163
       ],
       "size": [
         378,
         95.43333435058594
       ],
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 62
+          "link": 119
         },
         {
           "name": "dino_model",
@@ -178,15 +178,15 @@
       "id": 21,
       "type": "SegviGenVXZToSlat",
       "pos": [
-        367.3346689968612,
-        454.82742979256636
+        357.41084043682577,
+        416.44256860952737
       ],
       "size": [
         378,
-        184.8000030517578
+        299.4333190917969
       ],
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -210,7 +210,7 @@
           "widget": {
             "name": "vxz_path"
           },
-          "link": 53
+          "link": 106
         }
       ],
       "outputs": [
@@ -231,9 +231,7 @@
         {
           "name": "MESHES",
           "type": "MESHES",
-          "links": [
-            500
-          ]
+          "links": []
         },
         {
           "name": "SUBS",
@@ -258,22 +256,26 @@
         }
       },
       "widgets_values": [
-        ""
+        "",
+        true,
+        512,
+        16,
+        true
       ]
     },
     {
       "id": 40,
       "type": "SegviGenSlatToVoxel",
       "pos": [
-        1381.1910158220844,
-        433.8022630608641
+        1450.4543610020942,
+        365.61874455442785
       ],
       "size": [
         378,
-        156
+        239.43331909179688
       ],
       "flags": {},
-      "order": 11,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -297,7 +299,7 @@
           "name": "TEX_VOXELS",
           "type": "TEX_VOXELS",
           "links": [
-            501
+            103
           ]
         }
       ],
@@ -312,72 +314,26 @@
           "input_ue_unconnectable": {}
         }
       },
-      "widgets_values": []
-    },
-    {
-      "id": 50,
-      "type": "SegviGenVoxelToGLB",
-      "pos": [
-        1794.1358106322114,
-        266.64348368151695
-      ],
-      "size": [
-        374.54998779296875,
-        165.8000030517578
-      ],
-      "flags": {},
-      "order": 12,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "meshes",
-          "type": "MESHES",
-          "link": 500
-        },
-        {
-          "name": "tex_voxels",
-          "type": "TEX_VOXELS",
-          "link": 501
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": [
-            63
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-SegviGen",
-        "ver": "6de6bab4f825c5e0bbd2c51d1b955708b0501e89",
-        "Node name for S&R": "SegviGenVoxelToGLB",
-        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.7",
-          "input_ue_unconnectable": {}
-        }
-      },
       "widgets_values": [
-        "output.glb",
-        512
+        true,
+        120,
+        48,
+        true
       ]
     },
     {
       "id": 52,
       "type": "SegviGenGLBToVXZ",
       "pos": [
-        457.0825656489958,
-        722.2467488462551
+        441.92108046497606,
+        819.8705605270122
       ],
       "size": [
         270,
         143.43333435058594
       ],
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -394,7 +350,7 @@
           "name": "STRING",
           "type": "STRING",
           "links": [
-            53
+            106
           ]
         }
       ],
@@ -418,12 +374,12 @@
       "id": 54,
       "type": "Load3D",
       "pos": [
-        146.17941067250536,
-        1267.4676211820217
+        -560.2132638219048,
+        1079.8004188759564
       ],
       "size": [
-        831.7666625976562,
-        914.5166625976562
+        1043.4832763671875,
+        791.7833251953125
       ],
       "flags": {},
       "order": 3,
@@ -444,7 +400,8 @@
           "name": "mesh_path",
           "type": "STRING",
           "links": [
-            54
+            54,
+            104
           ]
         },
         {
@@ -483,13 +440,13 @@
           "fov": 75,
           "state": {
             "position": {
-              "x": 0.23978737055227087,
-              "y": 3.3089193404155433,
-              "z": 4.043734319732066
+              "x": -2.947292405145581,
+              "y": 3.5771369424891764,
+              "z": 1.913417010996683
             },
             "target": {
               "x": 0,
-              "y": 0.9348162739952822,
+              "y": 1.349864708022532,
               "z": 0
             },
             "zoom": 1,
@@ -509,7 +466,7 @@
         }
       },
       "widgets_values": [
-        "3d/2ae5cf2990c34e7db704f677de8de74c.glb",
+        "3d/226887c32c7a4a1f97de694e9bdbd10d.glb",
         null,
         "uploadExtraResources",
         "clear",
@@ -522,15 +479,15 @@
       "id": 58,
       "type": "Preview3D",
       "pos": [
-        1802.910544696735,
-        559.9098336240426
+        2797.8377360871086,
+        -5.961632490590432
       ],
       "size": [
-        1448.433349609375,
-        1324.6666259765625
+        2038.2166748046875,
+        2100.283447265625
       ],
       "flags": {},
-      "order": 14,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -551,7 +508,7 @@
           "widget": {
             "name": "model_file"
           },
-          "link": 69
+          "link": 123
         }
       ],
       "outputs": [],
@@ -577,13 +534,13 @@
           "fov": 35,
           "state": {
             "position": {
-              "x": -6.633379738207767,
-              "y": 4.126900315687842,
-              "z": 12.400746721539987
+              "x": -13.68986136304379,
+              "y": 4.535389497774013,
+              "z": 4.340430882320659
             },
             "target": {
               "x": 0,
-              "y": 0.9393206747610282,
+              "y": 1.349864708022532,
               "z": 0
             },
             "zoom": 1,
@@ -600,61 +557,11 @@
       ]
     },
     {
-      "id": 59,
-      "type": "SegviGenSplitColorGLB",
-      "pos": [
-        1344.2231652489304,
-        757.6506881661944
-      ],
-      "size": [
-        434.6166687011719,
-        175.43333435058594
-      ],
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "glb_path",
-          "type": "STRING",
-          "widget": {
-            "name": "glb_path"
-          },
-          "link": 63
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": [
-            69
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-SegviGen",
-        "ver": "90c628e8ef1af5c9c127ad9f546fcf57a91f0c03",
-        "Node name for S&R": "SegviGenSplitColorGLB",
-        "aux_id": "Aero-Ex/ComfyUI-SegviGen",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.7"
-        }
-      },
-      "widgets_values": [
-        "",
-        "segmented_parts.glb",
-        1
-      ]
-    },
-    {
       "id": 60,
       "type": "SegviGenEncoderLoader",
       "pos": [
-        -79.62395272993967,
-        436.14807028433034
+        -79.70363479179537,
+        436.154311700011
       ],
       "size": [
         348.4333190917969,
@@ -699,8 +606,8 @@
       "id": 61,
       "type": "SegviGenDecoderLoader",
       "pos": [
-        -78.45102923275465,
-        255.0883259559426
+        -78.45330122034295,
+        254.92422465811183
       ],
       "size": [
         342.6666564941406,
@@ -745,8 +652,8 @@
       "id": 66,
       "type": "SegviGenDinoLoader",
       "pos": [
-        -19.80644520965666,
-        117.2518385881445
+        -19.75947309930484,
+        117.23655981067645
       ],
       "size": [
         225,
@@ -782,15 +689,15 @@
       "id": 30,
       "type": "SegviGenSampler",
       "pos": [
-        859.0369097977195,
-        335.0187352147627
+        859.1031456969497,
+        335.0215305914992
       ],
       "size": [
         490.25,
         438.8500061035156
       ],
       "flags": {},
-      "order": 10,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -858,6 +765,152 @@
         196724522114791,
         "fixed"
       ]
+    },
+    {
+      "id": 86,
+      "type": "SegviGenBake",
+      "pos": [
+        1984.876881421254,
+        459.91132293846044
+      ],
+      "size": [
+        270,
+        207.43333435058594
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tex_voxels",
+          "type": "TEX_VOXELS",
+          "link": 103
+        },
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "widget": {
+            "name": "glb_path"
+          },
+          "link": 104
+        }
+      ],
+      "outputs": [
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "links": [
+            112
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "c6a01360ba11a9fa116daf9d493b2dcbb67fe891",
+        "Node name for S&R": "SegviGenBake",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "",
+        "baked_output1.glb",
+        512,
+        2048
+      ]
+    },
+    {
+      "id": 92,
+      "type": "SegviGenSplitColorGLB",
+      "pos": [
+        2353.668673921953,
+        501.10647241650145
+      ],
+      "size": [
+        356.4166564941406,
+        200.9166717529297
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "widget": {
+            "name": "glb_path"
+          },
+          "link": 112
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            123
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "4f4a46e4ef78c1f8ec32f77af95953211e9b00e7",
+        "Node name for S&R": "SegviGenSplitColorGLB",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "",
+        "segmented_parts.glb",
+        1
+      ]
+    },
+    {
+      "id": 96,
+      "type": "Trellis2SimplifyMesh",
+      "pos": [
+        1897.2154261833566,
+        851.7853700276455
+      ],
+      "size": [
+        270,
+        138.10000610351562
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESHWITHVOXEL",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "MESHWITHVOXEL",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "visualbruno/ComfyUI-Trellis2",
+        "ver": "3bceb25d1c232e7ab8536e462e21d1ed451be977",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "Trellis2SimplifyMesh"
+      },
+      "widgets_values": [
+        1000000,
+        "Cumesh"
+      ]
     }
   ],
   "links": [
@@ -918,30 +971,6 @@
       "SUBS"
     ],
     [
-      500,
-      21,
-      2,
-      50,
-      0,
-      "MESH"
-    ],
-    [
-      501,
-      40,
-      0,
-      50,
-      1,
-      "TEX_VOXEL"
-    ],
-    [
-      53,
-      52,
-      0,
-      21,
-      3,
-      "STRING"
-    ],
-    [
       54,
       54,
       2,
@@ -956,22 +985,6 @@
       30,
       5,
       "SUBS"
-    ],
-    [
-      62,
-      10,
-      0,
-      12,
-      0,
-      "IMAGE"
-    ],
-    [
-      63,
-      50,
-      0,
-      59,
-      0,
-      "STRING"
     ],
     [
       65,
@@ -1006,20 +1019,60 @@
       "TRELLIS_TEX_DECODER"
     ],
     [
-      69,
-      59,
-      0,
-      58,
-      2,
-      "STRING"
-    ],
-    [
       70,
       66,
       0,
       12,
       1,
       "DINO_MODEL"
+    ],
+    [
+      103,
+      40,
+      0,
+      86,
+      0,
+      "TEX_VOXELS"
+    ],
+    [
+      104,
+      54,
+      2,
+      86,
+      1,
+      "STRING"
+    ],
+    [
+      106,
+      52,
+      0,
+      21,
+      3,
+      "STRING"
+    ],
+    [
+      112,
+      86,
+      0,
+      92,
+      0,
+      "STRING"
+    ],
+    [
+      119,
+      10,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      123,
+      92,
+      0,
+      58,
+      2,
+      "STRING"
     ]
   ],
   "groups": [],
@@ -1029,10 +1082,10 @@
     "ue_links": [],
     "links_added_by_ue": [],
     "ds": {
-      "scale": 0.29228065117976465,
+      "scale": 0.3208102849027243,
       "offset": [
-        1273.7333948644418,
-        235.46381712967604
+        741.564551800214,
+        667.160430427484
       ]
     },
     "frontendVersion": "1.41.19",
