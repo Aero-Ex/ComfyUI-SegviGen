@@ -1,6 +1,6 @@
 # ComfyUI-SegviGen
 
-![Overview](assets/overview.png)
+![Overview](https://huggingface.co/Aero-Ex/SegviGen/resolve/main/nodemap.png)
 
 A ComfyUI implementation of SegviGen, providing precise 3D part segmentation for SegviGen.
 
