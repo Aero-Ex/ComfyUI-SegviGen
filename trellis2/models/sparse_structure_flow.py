@@ -146,10 +146,6 @@ class SparseStructureFlowModel(nn.Module):
         """
         return next(self.parameters()).device
 
-    @device.setter
-    def device(self, value):
-        pass
-
     def convert_to(self, dtype: torch.dtype) -> None:
         """
         Convert the torso of the model to the specified dtype.

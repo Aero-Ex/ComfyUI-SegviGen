@@ -114,13 +114,13 @@ def scaled_dot_product_attention(*args, **kwargs):
     elif config.BACKEND == 'flash_attn_3':
         if 'flash_attn_3' not in globals():
             import flash_attn_interface as flash_attn_3
-        if num_all_args == 1:
-            out = flash_attn_3.flash_attn_qkvpacked_func(qkv)
-        elif num_all_args == 2:
-            k, v = kv.unbind(dim=2)
-            out = flash_attn_3.flash_attn_func(q, k, v)
-        elif num_all_args == 3:
-            out = flash_attn_3.flash_attn_func(q, k, v)
+            if num_all_args == 1:
+                out = flash_attn_3.flash_attn_qkvpacked_func(qkv)
+            elif num_all_args == 2:
+                k, v = kv.unbind(dim=2)
+                out = flash_attn_3.flash_attn_func(q, k, v)
+            elif num_all_args == 3:
+                out = flash_attn_3.flash_attn_func(q, k, v)
     elif config.BACKEND == 'sdpa':
         if 'sdpa' not in globals():
             from torch.nn.functional import scaled_dot_product_attention as sdpa
