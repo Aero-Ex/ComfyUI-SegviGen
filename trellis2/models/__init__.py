@@ -1,10 +1,5 @@
 import importlib
-import torch
-import os
-import json
-from accelerate import init_empty_weights
-import comfy.utils
-from huggingface_hub import hf_hub_download
+from typing import Optional
 
 __attributes = {
     # Sparse Structure
@@ -41,48 +36,63 @@ def __getattr__(name):
     return globals()[name]
 
 
-def from_pretrained(model_path: str, local_dir: str = None, load_weights: bool = True, **kwargs):
+def from_pretrained(model_path: str, local_dir: Optional[str] = None, load_weights: bool = True, **kwargs):
     """
     Load a model from a pretrained checkpoint.
 
     Args:
         model_path: Full Hugging Face path, e.g., 'microsoft/TRELLIS.2-4B/ckpts/shape_enc'
-        local_dir: Base directory for models (e.g., '/home/aero/comfy/ComfyUI/models/microsoft')
+        local_dir: Base directory for models (e.g., '/home/aero/comfy/ComfyUI/models')
         load_weights: Whether to load the model weights. Set to False if you plan to load a custom checkpoint immediately after.
         **kwargs: Additional arguments for the model constructor.
     """
+    import os
+    import json
+    import torch
+    from huggingface_hub import hf_hub_download
+
     # Parse repo_id and the internal path
     # Example: 'microsoft/TRELLIS.2-4B/ckpts/shape_enc' -> repo_id='microsoft/TRELLIS.2-4B', subfolder='ckpts/shape_enc'
     parts = model_path.split('/')
     if len(parts) >= 3:
         repo_id = f"{parts[0]}/{parts[1]}"
         subfolder = "/".join(parts[2:])
-    else:
-        # Fallback if path is shorter
+        repo_name = parts[1]
+    elif len(parts) == 2:
         repo_id = model_path
         subfolder = None
+        repo_name = parts[1]
+    else:
+        repo_id = model_path
+        subfolder = None
+        repo_name = parts[0]
 
     config_file = None
     model_file = None
 
     # Determine local check paths
     if local_dir and subfolder:
-        # Check if local_dir already ends with the repo name (parts[1])
-        if local_dir.endswith(parts[1]):
-            target_path_base = os.path.join(local_dir, subfolder)
-        else:
-            target_path_base = os.path.join(local_dir, parts[1], subfolder)
+        # 1. Try with repo_id (vendor/repo)
+        path1 = os.path.join(local_dir, repo_id, subfolder)
+        # 2. Try with repo_name (just repo)
+        path2 = os.path.join(local_dir, repo_name, subfolder)
+        # 3. Try directly (if local_dir already points to repo)
+        path3 = os.path.join(local_dir, subfolder)
         
-        potential_config = target_path_base + ".json"
-        potential_model = target_path_base + ".safetensors"
-        
-        if os.path.exists(potential_config):
-            config_file = potential_config
-            print(f"Found local config at: {config_file}")
-        
-        if os.path.exists(potential_model) and load_weights:
-            model_file = potential_model
-            print(f"Found local model at: {model_file}")
+        for base in [path1, path2, path3]:
+            potential_config = base + ".json"
+            potential_model = base + ".safetensors"
+            
+            if os.path.exists(potential_config):
+                config_file = potential_config
+                print(f"Found local config at: {config_file}")
+            
+            if os.path.exists(potential_model) and load_weights:
+                model_file = potential_model
+                print(f"Found local model at: {model_file}")
+            
+            if config_file:
+                break
 
     # Fallback to downloading if local files are missing
     if not config_file:
@@ -102,8 +112,11 @@ def from_pretrained(model_path: str, local_dir: str = None, load_weights: bool =
     model = __getattr__(config['name'])(**config['args'], **kwargs)
     
     if load_weights:
-        # Load state dict on CPU
-        sd = comfy.utils.load_torch_file(model_file, device=torch.device("cpu"))
+        if model_file.endswith(".safetensors"):
+            from safetensors.torch import load_file
+            sd = load_file(model_file, device="cpu")
+        else:
+            sd = torch.load(model_file, map_location="cpu", weights_only=True)
         model.load_state_dict(sd, strict=False)
 
     return model

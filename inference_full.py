@@ -16,21 +16,35 @@ from PIL import Image
 from tqdm import tqdm
 from trellis2 import models
 from collections import OrderedDict
-from diffusers import Flux2Pipeline, AutoModel, Flux2KleinKVPipeline
 from transformers import Mistral3ForConditionalGeneration
 from trellis2.pipelines.rembg import BiRefNet
 from trellis2.representations import MeshWithVoxel
-from data_toolkit.bpy_render import render_from_transforms
 from trellis2.modules.image_feature_extractor import DinoV3FeatureExtractor
 
+try:
+    import cv2
+    import nvdiffrast.torch as nr
+    from flex_gemm.ops.grid_sample import grid_sample_3d
+    BAKE_ENABLED = True
+except ImportError as e:
+    print(f"[SegviGen] Warning: Texture baking dependencies NOT found ({e}). Skipping bake mode.")
+    BAKE_ENABLED = False
 
-TRELLIS_PIPELINE_JSON = "data_toolkit/texturing_pipeline.json"
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+TRELLIS_PIPELINE_JSON = os.path.join(ROOT_DIR, "data_toolkit/texturing_pipeline.json")
 TRELLIS_TEX_FLOW = "microsoft/TRELLIS.2-4B/ckpts/slat_flow_imgshape2tex_dit_1_3B_512_bf16"
 TRELLIS_SHAPE_ENC = "microsoft/TRELLIS.2-4B/ckpts/shape_enc_next_dc_f16c32_fp16"
 TRELLIS_TEX_ENC = "microsoft/TRELLIS.2-4B/ckpts/tex_enc_next_dc_f16c32_fp16"
 TRELLIS_SHAPE_DEC = "microsoft/TRELLIS.2-4B/ckpts/shape_dec_next_dc_f16c32_fp16"
 TRELLIS_TEX_DEC = "microsoft/TRELLIS.2-4B/ckpts/tex_dec_next_dc_f16c32_fp16"
-DINO_PATH = "fenghora/dinov3"
+DINO_PATH = "Aero-Ex/Dinov3"
+
+try:
+    import folder_paths
+    COMFY_MODELS_DIR = folder_paths.models_dir
+except ImportError:
+    COMFY_MODELS_DIR = "/home/aero/comfy/ComfyUI/models"
 
 
 EARLY_SIMPLIFY_ENABLED = True
@@ -48,9 +62,52 @@ def _scene_to_single_mesh(asset):
         mesh = asset
     else:
         raise TypeError(f"Unsupported asset type: {type(asset)}")
-    if mesh is None or len(mesh.faces) == 0:
-        raise ValueError("Empty mesh after loading.")
+    if mesh is None or (hasattr(mesh, 'faces') and len(mesh.faces) == 0):
+        # Fallback for empty geometries
+        return mesh
     return mesh
+
+
+def make_texture_square_pow2(img: Image.Image, target_size=None, max_size=1024):
+    w, h = img.size
+    max_side = max(w, h)
+    pow2 = 1
+    while pow2 < max_side:
+        pow2 *= 2
+    if target_size is not None:
+        pow2 = target_size
+    pow2 = min(pow2, max_size)
+    return img.resize((pow2, pow2), Image.BILINEAR)
+
+
+def preprocess_scene_textures(asset, max_texture_size=1024):
+    if not isinstance(asset, trimesh.Scene):
+        return asset
+    tex_keys = ["baseColorTexture", "normalTexture", "metallicRoughnessTexture", "emissiveTexture", "occlusionTexture"]
+    for geom in asset.geometry.values():
+        visual = getattr(geom, "visual", None)
+        mat = getattr(visual, "material", None)
+        if mat is None:
+            continue
+        for key in tex_keys:
+            if not hasattr(mat, key):
+                continue
+            tex = getattr(mat, key)
+            if tex is None:
+                continue
+            if isinstance(tex, Image.Image):
+                setattr(mat, key, make_texture_square_pow2(tex, max_size=max_texture_size))
+            elif hasattr(tex, "image") and tex.image is not None:
+                img = tex.image
+                if not isinstance(img, Image.Image):
+                    img = Image.fromarray(img)
+                tex.image = make_texture_square_pow2(img, max_size=max_texture_size)
+        if hasattr(mat, "image") and mat.image is not None:
+            img = mat.image
+            if not isinstance(img, Image.Image):
+                img = Image.fromarray(img)
+            mat.image = make_texture_square_pow2(img, max_size=max_texture_size)
+    return asset
 
 
 def _apply_neutral_visual(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
@@ -105,43 +162,7 @@ def build_simplified_work_glb(
         return output_glb_path, src_faces, dst_faces
     except Exception as e:
         print(f"[Simplify] Failed, fallback to original mesh: {e}")
-        mesh = _apply_neutral_visual(mesh.copy())
-        mesh.export(output_glb_path)
-        return output_glb_path, src_faces, src_faces
-
-
-def generate_2d_map_from_glb(glb_path, transforms_path, out_img_path, render_img_path=None):
-    """
-    Render the GLB first, then generate a 2D segmentation map with FLUX2.
-    """
-    PIPE.load_all_models()
-
-    if render_img_path is None:
-        base, _ = os.path.splitext(out_img_path)
-        render_img_path = f"{base}_render.png"
-
-    render_from_transforms(glb_path, transforms_path, render_img_path)
-
-    prompt = "Apply distinct colors to different regions of this image"
-
-    render_img = Image.open(render_img_path).convert("RGB")
-    if max(render_img.size) > 768:
-        scale = 768 / max(render_img.size)
-        render_img = render_img.resize(
-            (int(render_img.width * scale), int(render_img.height * scale)),
-            Image.Resampling.LANCZOS,
-        )
-
-    torch.cuda.empty_cache()
-
-    image = PIPE.flux2(
-        prompt=prompt,
-        image=render_img,
-        num_inference_steps=4,
-    ).images[0]
-
-    image.save(out_img_path)
-    return out_img_path
+        mesh = _apply_neutral_visual(mesh.copy()) 
 
 
 def _colorvisuals_to_texturevisuals(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
@@ -393,8 +414,10 @@ def process_glb_to_vxz(glb_path, vxz_path, shape_glb_path=None):
 
     aabb = tex_asset.bounding_box.bounds
     center = (aabb[0] + aabb[1]) / 2
-    scale = 0.99999 / (aabb[1] - aabb[0]).max()
-
+    max_side = (aabb[1] - aabb[0]).max()
+    scale = 0.99999 / max_side
+    print(f"[SegviGen] Vxz Calibration: AABB_MIN={aabb[0].tolist()}, AABB_MAX={aabb[1].tolist()}, Center={center.tolist()}, Scale={scale:.12f}, MaxSide={max_side:.12f}")
+    
     tex_asset.apply_translation(-center)
     tex_asset.apply_scale(scale)
 
@@ -421,43 +444,53 @@ def process_glb_to_vxz(glb_path, vxz_path, shape_glb_path=None):
     dual_vertices = dual_vertices[mapping]
     intersected = intersected[mapping]
 
+    # Material Voxelization (using full scene asset for correct attribute mapping)
     voxel_indices_mat, attributes = o_voxel.convert.textured_mesh_to_volumetric_attr(
-        tex_asset,
-        grid_size=512,
-        aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-        timing=False,
+        tex_asset, grid_size=512, aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]], timing=False
     )
     vid_mat = o_voxel.serialize.encode_seq(voxel_indices_mat)
     mapping_mat = torch.argsort(vid_mat)
     attributes = {k: v[mapping_mat] for k, v in attributes.items()}
 
+    # Quantize dual_vertices and intersection flags
     dual_vertices = dual_vertices * 512 - voxel_indices
     dual_vertices = (torch.clamp(dual_vertices, 0, 1) * 255).type(torch.uint8)
     intersected = (intersected[:, 0:1] + 2 * intersected[:, 1:2] + 4 * intersected[:, 2:3]).type(torch.uint8)
 
-    attributes['dual_vertices'] = dual_vertices
-    attributes['intersected'] = intersected
+    attributes.update({'dual_vertices': dual_vertices})
+    attributes.update({'intersected': intersected})
+    
+    os.makedirs(os.path.dirname(vxz_path), exist_ok=True)
     o_voxel.io.write(vxz_path, voxel_indices, attributes)
+    print(f"[SegviGen] Vxz: done")
 
 
 def vxz_to_latent_slat(shape_encoder, shape_decoder, tex_encoder, vxz_path):
+    device = next(shape_encoder.parameters()).device
     coords, data = o_voxel.io.read(vxz_path)
-    coords = torch.cat([torch.zeros(coords.shape[0], 1, dtype=torch.int32), coords], dim=1).cuda()
-    vertices = (data['dual_vertices'].cuda() / 255)
-    intersected = torch.cat([data['intersected'] % 2, data['intersected'] // 2 % 2, data['intersected'] // 4 % 2], dim=-1).bool().cuda()
+    coords = torch.cat([torch.zeros(coords.shape[0], 1, dtype=torch.int32), coords], dim=1).to(device)
+    vertices = (data['dual_vertices'].to(device) / 255)
+    intersected = torch.cat([data['intersected'] % 2, data['intersected'] // 2 % 2, data['intersected'] // 4 % 2], dim=-1).bool().to(device)
     vertices_sparse = sp.SparseTensor(vertices, coords)
     intersected_sparse = sp.SparseTensor(intersected.float(), coords)
     with torch.no_grad():
         shape_slat = shape_encoder(vertices_sparse, intersected_sparse)
-        shape_slat = sp.SparseTensor(shape_slat.feats.cuda(), shape_slat.coords.cuda())
+        shape_slat = sp.SparseTensor(shape_slat.feats.to(device), shape_slat.coords.to(device))
         shape_decoder.set_resolution(512)
         meshes, subs = shape_decoder(shape_slat, return_subs=True)
+        try:
+            for i, m in enumerate(meshes):
+                v_min = m.vertices.min(dim=0).values.tolist()
+                v_max = m.vertices.max(dim=0).values.tolist()
+                print(f"[Log - Decoder Output] Component {i} bounds: {v_min} to {v_max}")
+        except Exception:
+            pass
 
     base_color = (data['base_color'] / 255)
     metallic = (data['metallic'] / 255)
     roughness = (data['roughness'] / 255)
     alpha = (data['alpha'] / 255)
-    attr = torch.cat([base_color, metallic, roughness, alpha], dim=-1).float().cuda() * 2 - 1
+    attr = torch.cat([base_color, metallic, roughness, alpha], dim=-1).float().to(device) * 2 - 1
     with torch.no_grad():
         tex_slat = tex_encoder(sp.SparseTensor(attr, coords))
     return shape_slat, meshes, subs, tex_slat
@@ -519,6 +552,232 @@ def tex_slat_sample_single(gen3dseg, sampler, pipeline_args, shape_slat, input_t
     return output_tex_slat
 
 
+def make_texture_square_pow2(img: Image.Image, target_size=None, max_size=1024):
+    w, h = img.size
+    max_side = max(w, h)
+    pow2 = 1
+    while pow2 < max_side:
+        pow2 *= 2
+    if target_size is not None:
+        pow2 = target_size
+    pow2 = min(pow2, max_size)
+    return img.resize((pow2, pow2), Image.BILINEAR)
+
+
+def bake_to_mesh(glb_path, tex_voxels, output_path, resolution=512, texture_size=2048, generate_uv=False):
+    """
+    Bake texture from voxels onto an existing GLB mesh using the same logic as to_glb.
+    """
+    if not BAKE_ENABLED:
+        raise RuntimeError("Texture baking is not enabled (missing dependencies).")
+
+    print(f"[SegviGen] Bake: baking onto {glb_path} -> {output_path}")
+    asset = trimesh.load(glb_path, force='scene')
+    device = torch.device("cuda")
+    
+    # Prepare the attribute volume (sparse) as to_glb expects
+    if isinstance(tex_voxels, list):
+        attr_volume = torch.cat([vox.feats for vox in tex_voxels]).to(device)
+        attr_coords = torch.cat([vox.coords for vox in tex_voxels]).to(device)[:, -3:] # <--- Take only (Z, Y, X)
+    else:
+        attr_volume = tex_voxels.feats.to(device)
+        attr_coords = tex_voxels.coords.to(device)[:, -3:]
+    
+    print(f"[SegviGen] Bake Debug: attr_volume shape={attr_volume.shape}, coords bounds={attr_coords.min(dim=0)[0].tolist()} to {attr_coords.max(dim=0)[0].tolist()}")
+    
+    pbr_attr_layout = {
+        'base_color': slice(0, 3),
+        'metallic': slice(3, 4),
+        'roughness': slice(4, 5),
+        'alpha': slice(5, 6),
+    }
+
+    # [AI Voxel Data Logging]
+    num_voxels = attr_volume.shape[0]
+    print(f"\n[AI Voxel Data] Found {num_voxels} voxels generated by AI.")
+    
+    # Log a sample of 10 voxels (Position -> Color)
+    print("[AI Voxel Data] Sample Voxels (Grid Pos -> RGB):")
+    sample_indices = torch.linspace(0, num_voxels - 1, 10).long()
+    for idx in sample_indices:
+        pos = attr_coords[idx].tolist()
+        # Extract RGB from base_color slice (multiplied by 255)
+        color = (attr_volume[idx, pbr_attr_layout['base_color']] * 255).int().tolist()
+        print(f"  - Pos {pos} -> RGB {color}")
+    print("-" * 50)
+
+    # Scale voxels to match the slat to glb Unit Cube AABB
+    aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
+
+    # Calculate normalization (must match process_glb_to_vxz)
+    full_aabb = asset.bounding_box.bounds
+    center = (full_aabb[0] + full_aabb[1]) / 2
+    max_side = (full_aabb[1] - full_aabb[0]).max()
+    scale = 0.99999 / max_side
+
+    for name, geom in asset.geometry.items():
+        has_uv = hasattr(geom.visual, 'uv') and geom.visual.uv is not None
+        if not generate_uv and not has_uv:
+            print(f"[SegviGen] Bake Warning: Skipping {name} - No UVs found.")
+            continue
+            
+        print(f"[SegviGen] Bake: sampling {name}...")
+        
+        # Apply normalization to vertices for sampling
+        norm_vertices = (geom.vertices - center) * scale
+        
+
+        # LOGS FOR USER:
+        v_orig_min = geom.vertices.min(axis=0).tolist()
+        v_orig_max = geom.vertices.max(axis=0).tolist()
+        v_norm_min = norm_vertices.min(axis=0).tolist()
+        v_norm_max = norm_vertices.max(axis=0).tolist()
+        print(f"[Log - Bake Input] {name}: Original Bounds={v_orig_min} to {v_orig_max}")
+        print(f"[Log - Bake Input] {name}: Normalized Bounds={v_norm_min} to {v_norm_max} (Target: [-0.5, 0.5])")
+        
+        # Use to_glb with sparse input
+        baked_mesh = o_voxel.postprocess.to_glb(
+            vertices=torch.from_numpy(norm_vertices).float().to(device),
+            faces=torch.from_numpy(geom.faces).int().to(device),
+            attr_volume=attr_volume,
+            coords=attr_coords, 
+            attr_layout=pbr_attr_layout,
+            aabb=aabb,
+            voxel_size=1.0 / resolution,
+            texture_size=texture_size,
+            remesh=False, 
+            verbose=False
+        )
+        
+        if isinstance(baked_mesh, trimesh.Scene):
+            baked_mesh = list(baked_mesh.geometry.values())[0]
+
+        # 1. Reverse the axis swap/invert from to_glb (Y->Z, Z->-Y)
+        # Internal to_glb: v[:, 1], v[:, 2] = v[:, 2], -v[:, 1]
+        y_glb = baked_mesh.vertices[:, 1].copy()
+        z_glb = baked_mesh.vertices[:, 2].copy()
+        baked_mesh.vertices[:, 1] = -z_glb # restore original Y
+        baked_mesh.vertices[:, 2] = y_glb  # restore original Z
+
+        # 2. Denormalize output vertices to match original GLB coordinates
+        baked_mesh.vertices = (baked_mesh.vertices / scale) + center
+
+        # [Comparison: AI Voxel vs Mesh Vertex]
+        print(f"[Comparison] Picking 3 sample vertices from {name} to verify alignment:")
+        v_indices_sample = torch.linspace(0, len(geom.vertices) - 1, 3).long()
+        v_tensor_sample = torch.from_numpy(norm_vertices).float().to(device)
+        
+        # --- Manual Trilinear Sampling (Exact Match) ---
+        # 1. Prepare original coords (Z, Y, X) for axis detection
+        orig_attr_coords_3 = torch.cat([vox.coords for vox in tex_voxels]).to(device)[:, -3:]
+        
+        # 2. Detect axis mapping by comparing ranges
+        mesh_ranges = norm_vertices.max(axis=0) - norm_vertices.min(axis=0)
+        vox_ranges = (orig_attr_coords_3.max(dim=0)[0] - orig_attr_coords_3.min(dim=0)[0]).float().cpu().numpy()
+        m_sort = np.argsort(mesh_ranges)
+        v_sort = np.argsort(vox_ranges)
+        axis_map = {m_idx: v_idx for m_idx, v_idx in zip(m_sort, v_sort)}
+
+        for v_idx_sample in v_indices_sample:
+            v_idx_sample = v_idx_sample.item()
+            v_pos_sample = v_tensor_sample[v_idx_sample].cpu().numpy() # [3] (X, Y, Z normalized)
+            
+            # Map mesh units to float grid positions
+            grid_pos = np.zeros(3)
+            for m_i, v_i in axis_map.items():
+                grid_pos[v_i] = (v_pos_sample[m_i] + 0.5) * (resolution - 1)
+            
+            # Manual Trilinear Interpolation
+            # Get 8 neighbors (floor/ceil)
+            p0 = np.floor(grid_pos).astype(int)
+            p1 = np.clip(p0 + 1, 0, resolution - 1)
+            d = grid_pos - p0 # fractional parts
+            
+            # Sparse Lookup for 8 corners
+            def get_vox_color(pos):
+                pos_t = torch.from_numpy(pos).to(device)
+                mask = torch.all(torch.eq(orig_attr_coords_3, pos_t), dim=1)
+                if not torch.any(mask): return torch.zeros(3).to(device)
+                idx = torch.where(mask)[0][0]
+                return attr_volume[idx, pbr_attr_layout['base_color']]
+
+            # Sample 8 corners [z, y, x]
+            c000 = get_vox_color(p0)
+            c001 = get_vox_color(np.array([p0[0], p0[1], p1[2]]))
+            c010 = get_vox_color(np.array([p0[0], p1[1], p0[2]]))
+            c011 = get_vox_color(np.array([p0[0], p1[1], p1[2]]))
+            c100 = get_vox_color(np.array([p1[0], p0[1], p0[2]]))
+            c101 = get_vox_color(np.array([p1[0], p0[1], p1[2]]))
+            c110 = get_vox_color(np.array([p1[0], p1[1], p0[2]]))
+            c111 = get_vox_color(p1)
+
+            # Lerp across 3 axes
+            # x-axis
+            c00 = c000 * (1 - d[2]) + c001 * d[2]
+            c01 = c010 * (1 - d[2]) + c011 * d[2]
+            c10 = c100 * (1 - d[2]) + c101 * d[2]
+            c11 = c110 * (1 - d[2]) + c111 * d[2]
+            # y-axis
+            c0 = c00 * (1 - d[1]) + c01 * d[1]
+            c1 = c10 * (1 - d[1]) + c11 * d[1]
+            # z-axis
+            final_c = c0 * (1 - d[0]) + c1 * d[0]
+            
+            near_color = (final_c * 255).int().tolist()
+            
+            # --- Mesh Side: Find nearest vertex on baked mesh (Topology-Aware) ---
+            
+            # --- Mesh Side: Find nearest vertex on baked mesh (Topology-Aware) ---
+            v_orig = geom.vertices[v_idx_sample] # Original denormalized pos
+            # baked_mesh.vertices is already denormalized at this point
+            dist_baked_all = np.linalg.norm(baked_mesh.vertices - v_orig, axis=1)
+            v_idx_baked = np.argmin(dist_baked_all)
+            match_dist = dist_baked_all[v_idx_baked]
+            
+            # Sample the Baked Color from the finished mesh
+            baked_color = "N/A"
+            try:
+                img = None
+                vis = baked_mesh.visual
+                def find_image(obj, depth=0):
+                    if depth > 2: return None
+                    if hasattr(obj, 'image') and obj.image is not None: return obj.image
+                    if hasattr(obj, 'diffuse') and obj.diffuse is not None: return obj.diffuse
+                    for attr in ['baseColorTexture', 'base_color_texture']:
+                        if hasattr(obj, attr):
+                            sub = getattr(obj, attr)
+                            if hasattr(sub, 'image'): return sub.image
+                            if isinstance(sub, Image.Image): return sub
+                    return None
+
+                img = find_image(vis)
+                if img is None and hasattr(vis, 'material'):
+                    img = find_image(vis.material)
+                
+                if img is not None:
+                    u, v_coord = baked_mesh.visual.uv[v_idx_baked]
+                    w, h = img.size
+                    px, py = int(u * (w-1)), int((1.0 - v_coord) * (h-1))
+                    baked_color = list(img.getpixel((px, py))[:3])
+            except Exception:
+                pass
+            
+            print(f"  - Vertex {v_idx_sample} (Match Dist: {match_dist:.4f})")
+            print(f"    -> AI Expected Color: RGB {near_color}")
+            print(f"    -> Baked Color on Mesh: RGB {baked_color}")
+        print("-" * 50)
+        
+        v_final_min = baked_mesh.vertices.min(axis=0).tolist()
+        v_final_max = baked_mesh.vertices.max(axis=0).tolist()
+        print(f"[Log - Bake Output] {name}: Final Denormalized Bounds={v_final_min} to {v_final_max}")
+        
+        asset.geometry[name] = baked_mesh
+
+    asset.export(output_path)
+    print(f"[SegviGen] Bake: saved to {output_path}")
+    return output_path
+
+
 def slat_to_glb(meshes, tex_voxels, resolution=512):
     pbr_attr_layout = {
         'base_color': slice(0, 3),
@@ -527,8 +786,13 @@ def slat_to_glb(meshes, tex_voxels, resolution=512):
         'alpha': slice(5, 6),
     }
     out_mesh = []
-    for m, v in zip(meshes, tex_voxels):
-        m.fill_holes()
+    for i, (m, v) in enumerate(zip(meshes, tex_voxels)):
+        try:
+            v_min = m.vertices.min(dim=0).values.tolist()
+            v_max = m.vertices.max(dim=0).values.tolist()
+            print(f"[Log - Slat Input] Component {i}: vertices={len(m.vertices)}, bounds={v_min} to {v_max}")
+        except Exception:
+            pass
         out_mesh.append(
             MeshWithVoxel(
                 m.vertices,
@@ -551,8 +815,8 @@ def slat_to_glb(meshes, tex_voxels, resolution=512):
     glb = o_voxel.postprocess.to_glb(
         vertices=mesh.vertices,
         faces=mesh.faces,
-        attr_volume=mesh.attrs,
-        coords=mesh.coords,
+        attr_volume=mesh.attrs.cuda(),
+        coords=mesh.coords.cuda(),
         attr_layout=mesh.layout,
         voxel_size=mesh.voxel_size,
         aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
@@ -561,7 +825,7 @@ def slat_to_glb(meshes, tex_voxels, resolution=512):
         remesh=True,
         remesh_band=1,
         remesh_project=0,
-        verbose=True,
+        verbose=False,
     )
     return glb
 
@@ -589,55 +853,87 @@ class _LoadedPipeline:
             return
 
         print("-" * 100)
-        print("[Init] Loading pipeline config ............")
+        print("[Init] Loading pipeline config .....................")
         with open(TRELLIS_PIPELINE_JSON, "r") as f:
             pipeline_config = json.load(f)
         self.pipeline_args = pipeline_config['args']
-
-        print("-" * 100)
-        print("[Init] Loading TRELLIS backbone ............")
-        self.tex_slat_flow_model = models.from_pretrained(TRELLIS_TEX_FLOW)
-
-        self.gen3dseg = Gen3DSeg(self.tex_slat_flow_model)
-        self.gen3dseg.eval()
-        self.gen3dseg.cuda()
-
         self.sampler = Sampler()
-
-        self.shape_encoder = models.from_pretrained(TRELLIS_SHAPE_ENC).cuda().eval()
-        self.tex_encoder = models.from_pretrained(TRELLIS_TEX_ENC).cuda().eval()
-        self.shape_decoder = models.from_pretrained(TRELLIS_SHAPE_DEC).cuda().eval()
-        self.tex_decoder = models.from_pretrained(TRELLIS_TEX_DEC).cuda().eval()
-
-        print("-" * 100)
-        print("[Init] Loading conditioners ............")
-
-        self.rembg_model = BiRefNet(model_name="briaai/RMBG-2.0")
-        self.rembg_model.cuda()
-
-        self.image_cond_model = DinoV3FeatureExtractor(DINO_PATH)
-        self.image_cond_model.cuda()
-
-        repo_id = "black-forest-labs/FLUX.2-klein-9b-kv"
-        flux2 = Flux2KleinKVPipeline.from_pretrained(repo_id, torch_dtype=torch.bfloat16)
-        flux2.enable_model_cpu_offload()
-        self.flux2 = flux2
-
         self.loaded = True
-        print("[Init] Done.")
+        print("[Init] Config loaded. Models will be loaded on-demand and unloaded to save RAM.")
+
+    def get_rembg(self):
+        if self.rembg_model is None:
+            import os
+            rmbg_local = os.path.join(COMFY_MODELS_DIR, "briaai/RMBG-2.0")
+            if os.path.isdir(rmbg_local):
+                print(f"[OnDemand] Loading RMBG-2.0 from local path")
+                self.rembg_model = BiRefNet(model_name_or_path=rmbg_local)
+            else:
+                self.rembg_model = BiRefNet(model_name="briaai/RMBG-2.0")
+            self.rembg_model.eval()
+        return self.rembg_model
+
+    def get_cond_model(self):
+        if self.image_cond_model is None:
+            print(f"[OnDemand] Loading DinoV3 conditioners")
+            self.image_cond_model = DinoV3FeatureExtractor(DINO_PATH, local_dir=COMFY_MODELS_DIR, subfolder="facebook/dinov3-vitl16-pretrain-lvd1689m")
+            self.image_cond_model.eval()
+        return self.image_cond_model
+
+    def get_encoders_decoder(self):
+        # Load encoders and shape decoder together as they are used in vxz_to_latent_slat
+        if self.shape_encoder is None:
+            print(f"[OnDemand] Loading Encoders and Shape Decoder")
+            self.shape_encoder = models.from_pretrained(TRELLIS_SHAPE_ENC, local_dir=COMFY_MODELS_DIR).eval()
+            self.tex_encoder = models.from_pretrained(TRELLIS_TEX_ENC, local_dir=COMFY_MODELS_DIR).eval()
+            self.shape_decoder = models.from_pretrained(TRELLIS_SHAPE_DEC, local_dir=COMFY_MODELS_DIR).eval()
+        return self.shape_encoder, self.tex_encoder, self.shape_decoder
+
+    def get_gen3dseg(self):
+        if self.gen3dseg is None:
+            print(f"[OnDemand] Loading Backbone (Gen3DSeg)")
+            self.tex_slat_flow_model = models.from_pretrained(TRELLIS_TEX_FLOW, local_dir=COMFY_MODELS_DIR)
+            self.gen3dseg = Gen3DSeg(self.tex_slat_flow_model)
+            
+            if self.current_ckpt:
+                print(f"[OnDemand] Applying deferred checkpoint: {self.current_ckpt}")
+                ckpt_path = self.current_ckpt
+                filename = os.path.basename(ckpt_path).replace(".ckpt", ".safetensors")
+                local_safetensors = os.path.join(COMFY_MODELS_DIR, "checkpoints", filename)
+                
+                if os.path.exists(local_safetensors):
+                    from safetensors.torch import load_file
+                    state_dict = load_file(local_safetensors)
+                else:
+                    state_dict = torch.load(ckpt_path)['state_dict']
+                
+                state_dict = OrderedDict([(k.replace("gen3dseg.", ""), v) for k, v in state_dict.items()])
+                self.gen3dseg.load_state_dict(state_dict)
+            
+            self.gen3dseg.eval()
+        return self.gen3dseg
+
+    def get_tex_decoder(self):
+        if self.tex_decoder is None:
+            print(f"[OnDemand] Loading Texture Decoder")
+            self.tex_decoder = models.from_pretrained(TRELLIS_TEX_DEC, local_dir=COMFY_MODELS_DIR).eval()
+        return self.tex_decoder
+
+    def unload(self, *attr_names):
+        import gc
+        for name in attr_names:
+            val = getattr(self, name, None)
+            if val is not None:
+                if hasattr(val, 'cpu'): val.cpu()
+                setattr(self, name, None)
+        gc.collect()
+        torch.cuda.empty_cache()
 
     def load_ckpt_if_needed(self, ckpt_path: str):
         if self.current_ckpt == ckpt_path:
             return
-
-        print("-" * 100)
-        print(f"[CKPT] Loading ckpt: {ckpt_path}")
-        state_dict = torch.load(ckpt_path)['state_dict']
-        state_dict = OrderedDict([(k.replace("gen3dseg.", ""), v) for k, v in state_dict.items()])
-        self.gen3dseg.load_state_dict(state_dict)
-        self.gen3dseg.eval()
-        self.gen3dseg.cuda()
         self.current_ckpt = ckpt_path
+        print(f"[OnDemand] Checkpoint set to: {ckpt_path}. Will be applied when model is loaded.")
 
 
 PIPE = _LoadedPipeline()
@@ -664,50 +960,103 @@ def inference_with_loaded_models(ckpt_path, item):
             out_img_path=item["img"],
         )
 
-    if PIPE.rembg_model is None:
-        raise RuntimeError("PIPE.rembg_model is None. Check BiRefNet loading and .cuda() usage.")
-    if PIPE.image_cond_model is None:
-        raise RuntimeError("PIPE.image_cond_model is None. Check DinoV3FeatureExtractor loading and .cuda() usage.")
-
     process_glb_to_vxz(
         glb_path=item["glb"],
         vxz_path=item["input_vxz"],
     )
 
     image = Image.open(item["img"])
-    image = preprocess_image(PIPE.rembg_model, image)
-    cond = get_cond(PIPE.image_cond_model, [image])
+    
+    # 1. Background removal
+    rembg_model = PIPE.get_rembg()
+    rembg_model.cuda()
+    image = preprocess_image(rembg_model, image)
+    PIPE.unload('rembg_model')
 
+    # 2. Condition generation
+    cond_model = PIPE.get_cond_model()
+    cond_model.cuda()
+    cond = get_cond(cond_model, [image])
+    # Offload cond to CPU
+    cond = {k: v.cpu() for k, v in cond.items()}
+    PIPE.unload('image_cond_model')
+
+    # 3. VXZ to Latent SLat (Encoders + Shape Decoder)
+    shape_enc, tex_enc, shape_dec = PIPE.get_encoders_decoder()
+    shape_enc.cuda()
+    tex_enc.cuda()
+    shape_dec.cuda()
+    
     shape_slat, meshes, subs, tex_slat = vxz_to_latent_slat(
-        PIPE.shape_encoder,
-        PIPE.shape_decoder,
-        PIPE.tex_encoder,
+        shape_enc,
+        shape_dec,
+        tex_enc,
         item["input_vxz"],
     )
+    # Offload products to CPU
+    shape_slat = sp.SparseTensor(shape_slat.feats.cpu(), shape_slat.coords.cpu())
+    tex_slat = sp.SparseTensor(tex_slat.feats.cpu(), tex_slat.coords.cpu())
+    # subs are usually small indices or similar, keep them as is
+    
+    PIPE.unload('shape_encoder', 'tex_encoder', 'shape_decoder')
 
+    # 4. Sampling (Backbone)
+    gen3dseg = PIPE.get_gen3dseg()
+    gen3dseg.cuda()
+    # Move inputs to GPU for sampling
+    shape_slat_gpu = sp.SparseTensor(shape_slat.feats.cuda(), shape_slat.coords.cuda())
+    tex_slat_gpu = sp.SparseTensor(tex_slat.feats.cuda(), tex_slat.coords.cuda())
+    cond_gpu = {k: v.cuda() for k, v in cond.items()}
+    
     output_tex_slat = tex_slat_sample_single(
-        PIPE.gen3dseg, PIPE.sampler, PIPE.pipeline_args, shape_slat, tex_slat, cond
+        gen3dseg, PIPE.sampler, PIPE.pipeline_args, shape_slat_gpu, tex_slat_gpu, cond_gpu
     )
+    
+    # Offload result to CPU
+    output_tex_slat_cpu = sp.SparseTensor(output_tex_slat.feats.cpu(), output_tex_slat.coords.cpu())
+    
+    # Cleanup GPU inputs
+    del shape_slat_gpu, tex_slat_gpu, cond_gpu, output_tex_slat
+    PIPE.unload('gen3dseg', 'tex_slat_flow_model')
+
+    # 5. Texture Decoding
+    tex_decoder = PIPE.get_tex_decoder()
+    tex_decoder.cuda()
+    output_tex_slat_gpu = sp.SparseTensor(output_tex_slat_cpu.feats.cuda(), output_tex_slat_cpu.coords.cuda())
     with torch.no_grad():
-        tex_voxels = PIPE.tex_decoder(output_tex_slat, guide_subs=subs) * 0.5 + 0.5
+        subs_gpu = [s.cuda() if isinstance(s, torch.Tensor) else s for s in subs]
+        tex_voxels = tex_decoder(output_tex_slat_gpu, guide_subs=subs_gpu) * 0.5 + 0.5
+        # Move result to CPU immediately
+        tex_voxels = [v.cpu() for v in tex_voxels]
+    
+    PIPE.unload('tex_decoder')
 
-    glb = slat_to_glb(meshes, tex_voxels)
-
-    T = np.eye(4, dtype=np.float64)
-    T[:3, :3] = np.array(
-        [
-            [1, 0, 0],
-            [0, 0, -1],
-            [0, 1, 0],
-        ],
-        dtype=np.float64,
-    )
-
-    if hasattr(glb, "apply_transform") and callable(getattr(glb, "apply_transform")):
-        glb.apply_transform(T)
-        glb.export(item["export_glb"])
+    if item.get("bake", False):
+        bake_to_mesh(
+            item["glb"], 
+            tex_voxels, 
+            item["export_glb"], 
+            resolution=512, 
+            texture_size=2048,
+            generate_uv=item.get("generate_uv", False)
+        )
     else:
-        glb.export(item["export_glb"])
-        scene_or_mesh = trimesh.load(item["export_glb"], force="scene")
-        scene_or_mesh.apply_transform(T)
-        scene_or_mesh.export(item["export_glb"])
+        glb = slat_to_glb(meshes, tex_voxels)
+        T = np.eye(4, dtype=np.float64)
+        T[:3, :3] = np.array(
+            [
+                [1, 0, 0],
+                [0, 0, -1],
+                [0, 1, 0],
+            ],
+            dtype=np.float64,
+        )
+
+        if hasattr(glb, "apply_transform") and callable(getattr(glb, "apply_transform")):
+            glb.apply_transform(T)
+            glb.export(item["export_glb"])
+        else:
+            glb.export(item["export_glb"])
+            scene_or_mesh = trimesh.load(item["export_glb"], force="scene")
+            scene_or_mesh.apply_transform(T)
+            scene_or_mesh.export(item["export_glb"])

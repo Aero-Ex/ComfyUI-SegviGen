@@ -1,25 +1,23 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 
-# ignores
-ellis2/models/__pycache__/
-trellis2/models/__pycache__/
-trellis2/models/sc_vaes/__pycache__/
-trellis2/modules/__pycache__/
-trellis2/modules/attention/__pycache__/
-trellis2/modules/sparse/__pycache__/
-trellis2/modules/sparse/attention/__pycache__/
-trellis2/modules/sparse/conv/__pycache__/
-trellis2/modules/sparse/spatial/__pycache__/
-trellis2/modules/sparse/transformer/__pycache__/
-trellis2/modules/transformer/__pycache__/
-trellis2/pipelines/__pycache__/
-trellis2/pipelines/rembg/__pycache__/
-trellis2/renderers/__pycache__/
-trellis2/representations/__pycache__/
-trellis2/representations/mesh/__pycache__/
-trellis2/representations/voxel/__pycache__/
+# Temporary Folders
+_tmp_gradio_seg/
+
+# Project Specific
 trellis2/setup.sh
-trellis2/utils/__pycache__/
+
+# Others
+.DS_Store
+.venv/
+env/
+venv/
+node_modules/
+dist/
+build/
+*.bak
+*.swp
+*.tmp
+pretrained_model/

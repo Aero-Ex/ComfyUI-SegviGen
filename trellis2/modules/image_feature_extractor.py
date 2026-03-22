@@ -7,19 +7,26 @@ import numpy as np
 from PIL import Image
 
 
-class DinoV2FeatureExtractor(torch.nn.Module):
+class DinoV2FeatureExtractor:
     """
     Feature extractor for DINOv2 models.
     """
     def __init__(self, model_name: str):
-        super().__init__()
         self.model_name = model_name
         self.model = torch.hub.load('facebookresearch/dinov2', model_name, pretrained=True)
         self.model.eval()
         self.transform = transforms.Compose([
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-    
+
+    def to(self, device):
+        self.model.to(device)
+
+    def cuda(self):
+        self.model.cuda()
+
+    def cpu(self):
+        self.model.cpu()
     
     @torch.no_grad()
     def __call__(self, image: Union[torch.Tensor, List[Image.Image]]) -> torch.Tensor:
@@ -39,12 +46,11 @@ class DinoV2FeatureExtractor(torch.nn.Module):
             image = [i.resize((518, 518), Image.LANCZOS) for i in image]
             image = [np.array(i.convert('RGB')).astype(np.float32) / 255 for i in image]
             image = [torch.from_numpy(i).permute(2, 0, 1).float() for i in image]
-            image = torch.stack(image).to(next(self.parameters()).device)
+            image = torch.stack(image).cuda()
         else:
             raise ValueError(f"Unsupported type of image: {type(image)}")
         
-        image = self.transform(image)
-
+        image = self.transform(image).to(next(self.model.parameters()).device)
         features = self.model(image, is_training=True)['x_prenorm']
         patchtokens = F.layer_norm(features, features.shape[-1:])
         return patchtokens
@@ -58,17 +64,55 @@ class DinoV3FeatureExtractor(torch.nn.Module):
         super().__init__()
         self.model_name = model_name
         import os
-        if local_dir and subfolder and os.path.exists(os.path.join(local_dir, subfolder)):
-            model_path = os.path.join(local_dir, subfolder)
+        repo_id = model_name
+        repo_name = model_name.split('/')[-1]
+        
+        model_path = None
+        if local_dir and subfolder:
+            # Try repo_id/subfolder, repo_name/subfolder, then directly subfolder
+            for base in [repo_id, repo_name, ""]:
+                p = os.path.join(local_dir, base, subfolder)
+                if os.path.exists(p):
+                    model_path = p
+                    print(f"Found local DinoV3 at: {model_path}")
+                    break
+        
+        if not model_path:
+            try:
+                from huggingface_hub import snapshot_download
+                # Standardize to local_dir/subfolder
+                target_path = os.path.join(local_dir, subfolder)
+                print(f"SegviGen: Downloading DinoV3 to {target_path}...")
+                # snapshot_download doesn't support 'subfolder' directly, use allow_patterns
+                snapshot_download(
+                    repo_id=model_name,
+                    allow_patterns=[f"{subfolder}/*"],
+                    local_dir=local_dir,
+                    local_dir_use_symlinks=False,
+                )
+                model_path = target_path
+            except Exception as e:
+                print(f"SegviGen: Local download failed, falling back to Hub cache: {e}")
+                model_path = model_name
+
+        if os.path.isdir(model_path):
             self.model = DINOv3ViTModel.from_pretrained(model_path)
         else:
-            self.model = DINOv3ViTModel.from_pretrained(model_name, subfolder=subfolder)
+            self.model = DINOv3ViTModel.from_pretrained(model_name, subfolder=subfolder, cache_dir=local_dir)
         self.model.eval()
         self.image_size = image_size
         self.transform = transforms.Compose([
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-    
+
+    def to(self, device):
+        self.model.to(device)
+
+    def cuda(self):
+        self.model.cuda()
+
+    def cpu(self):
+        self.model.cpu()
 
     def extract_features(self, image: torch.Tensor) -> torch.Tensor:
         image = image.to(self.model.embeddings.patch_embeddings.weight.dtype)
@@ -101,11 +145,10 @@ class DinoV3FeatureExtractor(torch.nn.Module):
             image = [i.resize((self.image_size, self.image_size), Image.LANCZOS) for i in image]
             image = [np.array(i.convert('RGB')).astype(np.float32) / 255 for i in image]
             image = [torch.from_numpy(i).permute(2, 0, 1).float() for i in image]
-            image = torch.stack(image).to(next(self.parameters()).device)
+            image = torch.stack(image).cuda()
         else:
             raise ValueError(f"Unsupported type of image: {type(image)}")
         
-        image = self.transform(image)
-
+        image = self.transform(image).to(next(self.model.parameters()).device)
         features = self.extract_features(image)
         return features

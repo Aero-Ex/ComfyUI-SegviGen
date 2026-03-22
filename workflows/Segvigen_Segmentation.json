@@ -1,0 +1,765 @@
+{
+  "id": "24bd1290-cb99-45f3-9db4-f7a77d0fe205",
+  "revision": 0,
+  "last_node_id": 33,
+  "last_link_id": 62,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "pos": [
+        -2860.130525704001,
+        91.39953755269767
+      ],
+      "size": [
+        477.6000061035156,
+        513.9833374023438
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            55
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "226887c32c7a4a1f97de694e9bdbd10d.png",
+        "image"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "Load3D",
+      "pos": [
+        -2338.9520258917946,
+        457.0006313353182
+      ],
+      "size": [
+        475.6166687011719,
+        757.2999877929688
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "mesh_path",
+          "type": "STRING",
+          "links": [
+            42
+          ]
+        },
+        {
+          "name": "normal",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "camera_info",
+          "type": "LOAD3D_CAMERA",
+          "links": null
+        },
+        {
+          "name": "recording_video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "model_3d",
+          "type": "FILE_3D",
+          "links": [
+            52
+          ]
+        }
+      ],
+      "properties": {
+        "Resource Folder": "",
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "Load3D",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": -3.7694508226236585,
+              "y": 2.556154936104484,
+              "z": -4.5931230311107525
+            },
+            "target": {
+              "x": 0,
+              "y": 1.349864708022532,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 10
+        }
+      },
+      "widgets_values": [
+        "3d/226887c32c7a4a1f97de694e9bdbd10d.glb",
+        "upload3dmodel",
+        "uploadExtraResources",
+        "clear",
+        "",
+        1024,
+        1024
+      ]
+    },
+    {
+      "id": 18,
+      "type": "SegviGenSampler",
+      "pos": [
+        -1399.8274465137015,
+        36.253390430161744
+      ],
+      "size": [
+        390.25,
+        178.11666870117188
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "SEG_CONDITIONING",
+          "link": 60
+        },
+        {
+          "name": "shape_slat",
+          "type": "SEG_SLAT",
+          "link": 31
+        },
+        {
+          "name": "tex_slat",
+          "type": "SEG_SLAT",
+          "link": 32
+        },
+        {
+          "name": "sampler_settings",
+          "shape": 7,
+          "type": "SEG_SAMPLER_CONFIG",
+          "link": 44
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output_tex_slat",
+          "type": "SEG_SLAT",
+          "links": [
+            47
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenSampler",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "full_seg_w_2d_map.safetensors"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "SegviGenVoxelEncoder",
+      "pos": [
+        -1861.6189046220024,
+        249.28572370867028
+      ],
+      "size": [
+        341.70001220703125,
+        157.43333435058594
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input_3d",
+          "type": "*",
+          "link": 42
+        }
+      ],
+      "outputs": [
+        {
+          "name": "shape_slat",
+          "type": "SEG_SLAT",
+          "links": [
+            31
+          ]
+        },
+        {
+          "name": "meshes",
+          "type": "SEG_MESHES",
+          "links": []
+        },
+        {
+          "name": "subs",
+          "type": "SEG_SUBS",
+          "links": [
+            51
+          ]
+        },
+        {
+          "name": "tex_slat",
+          "type": "SEG_SLAT",
+          "links": [
+            32
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenVoxelEncoder",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 21,
+      "type": "Preview3D",
+      "pos": [
+        -1212.6269380855415,
+        424.7986029628146
+      ],
+      "size": [
+        1066.2166748046875,
+        1212.199951171875
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "camera_info",
+          "shape": 7,
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        },
+        {
+          "name": "bg_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "model_file",
+          "type": "STRING,FILE_3D_GLB,FILE_3D_GLTF,FILE_3D_FBX,FILE_3D_OBJ,FILE_3D_STL,FILE_3D_USDZ,FILE_3D",
+          "widget": {
+            "name": "model_file"
+          },
+          "link": 62
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "Preview3D",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "Last Time Model File": "/home/aero/comfy/ComfyUI/output/segvigen/split_00001_parts.glb",
+        "Resource Folder": "aero/comfy/ComfyUI/output/segvigen",
+        "Scene Config": {
+          "showGrid": true,
+          "backgroundColor": "#282828",
+          "backgroundImage": "",
+          "backgroundRenderMode": "tiled"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": 8.26894049792156,
+              "y": 6.430780935490757,
+              "z": -2.05681194177788
+            },
+            "target": {
+              "x": 0,
+              "y": 1.349864708022532,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 1
+        },
+        "Model Config": {
+          "upDirection": "original",
+          "materialMode": "original",
+          "showSkeleton": false
+        }
+      },
+      "widgets_values": [
+        "/home/aero/comfy/ComfyUI/output/segvigen/split_00001_parts.glb",
+        ""
+      ]
+    },
+    {
+      "id": 24,
+      "type": "SegviGenSamplerConfig",
+      "pos": [
+        -1629.726954741565,
+        483.83401927091745
+      ],
+      "size": [
+        352.3666687011719,
+        241.89999389648438
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "sampler_config",
+          "type": "SEG_SAMPLER_CONFIG",
+          "links": [
+            44
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenSamplerConfig",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        12,
+        7.5,
+        3,
+        66944287419881,
+        "randomize"
+      ]
+    },
+    {
+      "id": 28,
+      "type": "SegviGenStage5Baker",
+      "pos": [
+        -910.0121859112742,
+        53.31985818243197
+      ],
+      "size": [
+        270,
+        183.43333435058594
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "output_tex_slat",
+          "type": "SEG_SLAT",
+          "link": 47
+        },
+        {
+          "name": "subs",
+          "type": "SEG_SUBS",
+          "link": 51
+        },
+        {
+          "name": "original_3d",
+          "type": "*",
+          "link": 52
+        }
+      ],
+      "outputs": [
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "links": [
+            61
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenStage5Baker",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        false,
+        "segvigen/bake"
+      ]
+    },
+    {
+      "id": 29,
+      "type": "SegviGenRmbg",
+      "pos": [
+        -2265.171874445572,
+        116.27340261032623
+      ],
+      "size": [
+        368.1166687011719,
+        95.43333435058594
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 55
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "pil_image",
+          "type": "PIL_IMAGE",
+          "links": [
+            59
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenRmbg",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 30,
+      "type": "SegviGenConditioner",
+      "pos": [
+        -1842.8258000171418,
+        -29.55567088831299
+      ],
+      "size": [
+        320.7833251953125,
+        71.43333435058594
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pil_image",
+          "type": "PIL_IMAGE",
+          "link": 59
+        }
+      ],
+      "outputs": [
+        {
+          "name": "conditioning",
+          "type": "SEG_CONDITIONING",
+          "links": [
+            60
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenConditioner",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 31,
+      "type": "SegviGenSplitter",
+      "pos": [
+        -494.5724157049176,
+        -84.73947107369304
+      ],
+      "size": [
+        288.1833190917969,
+        454.1000061035156
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "widget": {
+            "name": "glb_path"
+          },
+          "link": 61
+        }
+      ],
+      "outputs": [
+        {
+          "name": "part_glb_path",
+          "type": "STRING",
+          "links": [
+            62
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenSplitter",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "",
+        "segvigen/split",
+        16,
+        2000000,
+        500,
+        256,
+        32,
+        4,
+        true,
+        true,
+        50,
+        true
+      ]
+    },
+    {
+      "id": 32,
+      "type": "Note",
+      "pos": [
+        -907.6357297707303,
+        -132.4878557088394
+      ],
+      "size": [
+        253.01666259765625,
+        131.01666259765625
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Enable Generate_UV if input mesh does not has an uv map"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 33,
+      "type": "Note",
+      "pos": [
+        -2298.663922898305,
+        269.5802854058358
+      ],
+      "size": [
+        307.5666809082031,
+        109.94999694824219
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "First Run Will be slow as it will download all the required models"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      31,
+      19,
+      0,
+      18,
+      1,
+      "SEG_SLAT"
+    ],
+    [
+      32,
+      19,
+      3,
+      18,
+      2,
+      "SEG_SLAT"
+    ],
+    [
+      42,
+      6,
+      2,
+      19,
+      0,
+      "STRING"
+    ],
+    [
+      44,
+      24,
+      0,
+      18,
+      3,
+      "SEG_SAMPLER_CONFIG"
+    ],
+    [
+      47,
+      18,
+      0,
+      28,
+      0,
+      "SEG_SLAT"
+    ],
+    [
+      51,
+      19,
+      2,
+      28,
+      1,
+      "SEG_SUBS"
+    ],
+    [
+      52,
+      6,
+      6,
+      28,
+      2,
+      "FILE_3D"
+    ],
+    [
+      55,
+      3,
+      0,
+      29,
+      0,
+      "IMAGE"
+    ],
+    [
+      59,
+      29,
+      1,
+      30,
+      0,
+      "PIL_IMAGE"
+    ],
+    [
+      60,
+      30,
+      0,
+      18,
+      0,
+      "SEG_CONDITIONING"
+    ],
+    [
+      61,
+      28,
+      0,
+      31,
+      0,
+      "STRING"
+    ],
+    [
+      62,
+      31,
+      0,
+      21,
+      2,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "ds": {
+      "scale": 0.36745836979786844,
+      "offset": [
+        3273.901130365234,
+        797.8169629538229
+      ]
+    },
+    "workflowRendererVersion": "Vue",
+    "frontendVersion": "1.41.19",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
