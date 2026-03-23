@@ -14,6 +14,46 @@ EARLY_SIMPLIFY_TARGET_FACES = 120000
 EARLY_SIMPLIFY_AGGRESSION = 2
 EARLY_SIMPLIFY_ENABLED = True
 
+def prepare_fast_simplifier():
+    try:
+        import fast_simplification
+        return fast_simplification
+    except ImportError:
+        return None
+
+def fast_simplify_mesh(input_path, output_path, target_reduction=0.7):
+    """
+    Simplify mesh using fast-simplification library.
+    target_reduction: 0.0 to 1.0 (e.g., 0.7 means remove 70% of faces).
+    """
+    fast_simplification = prepare_fast_simplifier()
+    if fast_simplification is None:
+        print("[SegviGen] Warning: fast-simplification not found. Falling back to original mesh.")
+        import shutil
+        shutil.copy(input_path, output_path)
+        return output_path
+
+    asset = trimesh.load(input_path, force='scene', process=False)
+    
+    # Process each geometry in the scene
+    for name, geom in asset.geometry.items():
+        if not isinstance(geom, trimesh.Trimesh) or len(geom.faces) < 100:
+            continue
+            
+        print(f"[SegviGen] Simplifying {name}: {len(geom.faces)} faces...")
+        try:
+            # fast_simplification.simplify(v, f, target_reduction)
+            new_v, new_f = fast_simplification.simplify(geom.vertices, geom.faces, target_reduction)
+            
+            # Maintain visual if possible (though simplification usually breaks it)
+            # For pre-simplification, we mostly care about geometry.
+            asset.geometry[name] = trimesh.Trimesh(vertices=new_v, faces=new_f, process=False)
+        except Exception as e:
+            print(f"[SegviGen] Error simplifying {name}: {e}")
+            
+    asset.export(output_path)
+    return output_path
+
 def get_work_glb_path(item):
     base, _ = os.path.splitext(item["input_vxz"])
     return f"{base}_work.glb"
@@ -203,6 +243,7 @@ def process_glb_to_vxz(glb_path, vxz_path, shape_glb_path=None):
     center = (aabb[0] + aabb[1]) / 2
     max_side = (aabb[1] - aabb[0]).max()
     scale = 0.99999 / max_side
+    print(f"[SegviGen] Vxz Calibration: AABB_MIN={aabb[0].tolist()}, AABB_MAX={aabb[1].tolist()}, Center={center.tolist()}, Scale={scale:.12f}, MaxSide={max_side:.12f}")
     
     tex_asset.apply_translation(-center)
     tex_asset.apply_scale(scale)
@@ -281,9 +322,15 @@ def slat_to_glb(meshes, tex_voxels, resolution=512):
     )
 
 def bake_to_mesh(glb_path, tex_voxels, output_path, resolution=512, texture_size=2048, generate_uv=False):
+    """
+    Bake texture from voxels onto an existing GLB mesh using the same logic as to_glb.
+    Handles scene graph transforms for accurate alignment.
+    """
+    print(f"[SegviGen] Bake: baking onto {glb_path} -> {output_path}")
     asset = trimesh.load(glb_path, force='scene')
     device = torch.device("cuda")
     
+    # Prepare the attribute volume (sparse) as to_glb expects
     if isinstance(tex_voxels, list):
         attr_volume = torch.cat([vox.feats for vox in tex_voxels]).to(device)
         attr_coords = torch.cat([vox.coords for vox in tex_voxels]).to(device)[:, -3:]
@@ -291,34 +338,70 @@ def bake_to_mesh(glb_path, tex_voxels, output_path, resolution=512, texture_size
         attr_volume = tex_voxels.feats.to(device)
         attr_coords = tex_voxels.coords.to(device)[:, -3:]
     
-    pbr_attr_layout = {'base_color': slice(0, 3), 'metallic': slice(3, 4), 'roughness': slice(4, 5), 'alpha': slice(5, 6)}
-    
+    pbr_attr_layout = {
+        'base_color': slice(0, 3),
+        'metallic': slice(3, 4),
+        'roughness': slice(4, 5),
+        'alpha': slice(5, 6),
+    }
+
+    # Calculate normalization (must match process_glb_to_vxz)
     full_aabb = asset.bounding_box.bounds
     center = (full_aabb[0] + full_aabb[1]) / 2
     max_side = (full_aabb[1] - full_aabb[0]).max()
     scale = 0.99999 / max_side
 
-    for name, geom in asset.geometry.items():
-        if not generate_uv and not (hasattr(geom.visual, 'uv') and geom.visual.uv is not None):
+    # Iterate over nodes to handle scene graph transforms
+    for node_name in asset.graph.nodes_geometry:
+        transform, geom_name = asset.graph[node_name]
+        geom = asset.geometry[geom_name]
+        
+        has_uv = hasattr(geom.visual, 'uv') and geom.visual.uv is not None
+        if not generate_uv and not has_uv:
+            print(f"[SegviGen] Bake Warning: Skipping {node_name} - No UVs found.")
             continue
             
-        norm_vertices = (geom.vertices - center) * scale
+        print(f"[SegviGen] Bake: sampling {node_name}...")
+        
+        # 1. Transform local vertices to world space
+        world_vertices = trimesh.transformations.transform_points(geom.vertices, transform)
+        
+        # 2. Normalize world vertices to fit AI unit cube [-0.5, 0.5]
+        norm_vertices = (world_vertices - center) * scale
+        
+        # Use to_glb with sparse input
         baked_mesh = o_voxel.postprocess.to_glb(
-            vertices=torch.from_numpy(norm_vertices).float().to(device),
-            faces=torch.from_numpy(geom.faces).int().to(device),
-            attr_volume=attr_volume, coords=attr_coords, attr_layout=pbr_attr_layout,
-            aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]], voxel_size=1.0 / resolution,
-            texture_size=texture_size, remesh=False, verbose=False
+            vertices=torch.from_numpy(norm_vertices).float().to(device).contiguous(),
+            faces=torch.from_numpy(geom.faces).int().to(device).contiguous(),
+            attr_volume=attr_volume,
+            coords=attr_coords, 
+            attr_layout=pbr_attr_layout,
+            aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
+            voxel_size=1.0 / resolution,
+            texture_size=texture_size,
+            remesh=False, 
+            verbose=False
         )
+        
         if isinstance(baked_mesh, trimesh.Scene):
             baked_mesh = list(baked_mesh.geometry.values())[0]
 
+        # 3. Reverse the axis swap/invert from to_glb (Y->Z, Z->-Y)
         y_glb = baked_mesh.vertices[:, 1].copy()
         z_glb = baked_mesh.vertices[:, 2].copy()
-        baked_mesh.vertices[:, 1] = -z_glb
-        baked_mesh.vertices[:, 2] = y_glb
-        baked_mesh.vertices = (baked_mesh.vertices / scale) + center
-        asset.geometry[name] = baked_mesh
+        baked_mesh.vertices[:, 1] = -z_glb # restore original Y
+        baked_mesh.vertices[:, 2] = y_glb  # restore original Z
+
+        # 4. Denormalize output vertices to match original GLB coordinates (Back to World Space)
+        world_baked_vertices = (baked_mesh.vertices / scale) + center
+        
+        # 5. Transform back to LOCAL space for replacement in the original node
+        inv_transform = np.linalg.inv(transform)
+        baked_mesh.vertices = trimesh.transformations.transform_points(world_baked_vertices, inv_transform)
+
+        # Replace geometry in the scene with the baked version
+        asset.geometry[geom_name] = baked_mesh
 
     asset.export(output_path)
+    print(f"[SegviGen] Bake: saved to {output_path}")
     return output_path

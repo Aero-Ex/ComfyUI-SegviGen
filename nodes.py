@@ -11,7 +11,7 @@ from .pipeline_inference import (
 )
 from .utils_3d import (
     build_simplified_work_glb, get_work_glb_path, process_glb_to_vxz,
-    vxz_to_latent_slat, bake_to_mesh, slat_to_glb,
+    vxz_to_latent_slat, bake_to_mesh, slat_to_glb, fast_simplify_mesh,
     EARLY_SIMPLIFY_ENABLED, EARLY_SIMPLIFY_TARGET_FACES, EARLY_SIMPLIFY_AGGRESSION
 )
 from . import split as splitter
@@ -323,6 +323,7 @@ class SegviGenStage5Renderer:
     
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("glb_path",)
+    OUTPUT_NODE = True
     FUNCTION = "render"
     CATEGORY = "SegviGen/Stages"
 
@@ -375,6 +376,7 @@ class SegviGenStage5Baker:
     
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("glb_path",)
+    OUTPUT_NODE = True
     FUNCTION = "bake"
     CATEGORY = "SegviGen/Stages"
 
@@ -430,6 +432,7 @@ class SegviGenSegmenter:
     
     RETURN_TYPES = ("STRING", "IMAGE")
     RETURN_NAMES = ("glb_path", "preview_image")
+    OUTPUT_NODE = True
     FUNCTION = "segment"
     CATEGORY = "SegviGen"
     def segment(self, model_name, bake_mode, generate_uv, filename_prefix="segvigen/seg", input_3d=None, image=None):
@@ -575,6 +578,7 @@ class SegviGenSplitter:
     
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("part_glb_path",)
+    OUTPUT_NODE = True
     FUNCTION = "split"
     CATEGORY = "SegviGen"
 
@@ -599,6 +603,39 @@ class SegviGenSplitter:
 
         return (out_parts_glb,)
 
+class SegviGenPreSimplification:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "input_3d": ("*",),
+                "target_reduction": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 0.99, "step": 0.01}),
+                "filename_prefix": ("STRING", {"default": "segvigen/simplified"}),
+            }
+        }
+    
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("simplified_glb_path",)
+    OUTPUT_NODE = True 
+    FUNCTION = "simplify"
+    CATEGORY = "SegviGen"
+
+    def simplify(self, input_3d, target_reduction, filename_prefix="segvigen/simplified"):
+        glb_path = resolve_3d_path(input_3d)
+        if not glb_path or not os.path.isfile(glb_path):
+            raise FileNotFoundError(f"Input GLB not found: {glb_path}")
+
+        output_dir = folder_paths.get_output_directory()
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir)
+        os.makedirs(full_output_folder, exist_ok=True)
+        
+        out_name = f"{filename}_{counter:05}_.glb"
+        out_glb = os.path.join(full_output_folder, out_name)
+
+        fast_simplify_mesh(glb_path, out_glb, target_reduction=target_reduction)
+        
+        return {"ui": {"files": [{"filename": out_name, "subfolder": subfolder, "type": "output"}]}, "result": (out_glb,)}
+
 NODE_CLASS_MAPPINGS = {
     "SegviGenModelLoader": SegviGenModelLoader,
     "SegviGenSegmenter": SegviGenSegmenter,
@@ -609,7 +646,8 @@ NODE_CLASS_MAPPINGS = {
     "SegviGenSampler": SegviGenSampler,
     "SegviGenSamplerConfig": SegviGenSamplerConfig,
     "SegviGenStage5Renderer": SegviGenStage5Renderer,
-    "SegviGenStage5Baker": SegviGenStage5Baker
+    "SegviGenStage5Baker": SegviGenStage5Baker,
+    "SegviGenPreSimplification": SegviGenPreSimplification
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -622,5 +660,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SegviGenSampler": "SegviGen: Sampling",
     "SegviGenSamplerConfig": "SegviGen Sampler Config",
     "SegviGenStage5Renderer": "SegviGen: Renderer",
-    "SegviGenStage5Baker": "SegviGen: Baker"
+    "SegviGenStage5Baker": "SegviGen: Baker",
+    "SegviGenPreSimplification": "SegviGen: Pre-Simplification"
 }
