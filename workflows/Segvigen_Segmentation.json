@@ -1,164 +1,22 @@
 {
   "id": "24bd1290-cb99-45f3-9db4-f7a77d0fe205",
   "revision": 0,
-  "last_node_id": 33,
-  "last_link_id": 62,
+  "last_node_id": 35,
+  "last_link_id": 69,
   "nodes": [
-    {
-      "id": 3,
-      "type": "LoadImage",
-      "pos": [
-        -2860.130525704001,
-        91.39953755269767
-      ],
-      "size": [
-        477.6000061035156,
-        513.9833374023438
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            55
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.17.0",
-        "Node name for S&R": "LoadImage",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.7"
-        }
-      },
-      "widgets_values": [
-        "226887c32c7a4a1f97de694e9bdbd10d.png",
-        "image"
-      ]
-    },
-    {
-      "id": 6,
-      "type": "Load3D",
-      "pos": [
-        -2338.9520258917946,
-        457.0006313353182
-      ],
-      "size": [
-        475.6166687011719,
-        757.2999877929688
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "mask",
-          "type": "MASK",
-          "links": null
-        },
-        {
-          "name": "mesh_path",
-          "type": "STRING",
-          "links": [
-            42
-          ]
-        },
-        {
-          "name": "normal",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "camera_info",
-          "type": "LOAD3D_CAMERA",
-          "links": null
-        },
-        {
-          "name": "recording_video",
-          "type": "VIDEO",
-          "links": null
-        },
-        {
-          "name": "model_3d",
-          "type": "FILE_3D",
-          "links": [
-            52
-          ]
-        }
-      ],
-      "properties": {
-        "Resource Folder": "",
-        "cnr_id": "comfy-core",
-        "ver": "0.17.0",
-        "Node name for S&R": "Load3D",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.7"
-        },
-        "Camera Config": {
-          "cameraType": "perspective",
-          "fov": 35,
-          "state": {
-            "position": {
-              "x": -3.7694508226236585,
-              "y": 2.556154936104484,
-              "z": -4.5931230311107525
-            },
-            "target": {
-              "x": 0,
-              "y": 1.349864708022532,
-              "z": 0
-            },
-            "zoom": 1,
-            "cameraType": "perspective"
-          }
-        },
-        "Light Config": {
-          "intensity": 10
-        }
-      },
-      "widgets_values": [
-        "3d/226887c32c7a4a1f97de694e9bdbd10d.glb",
-        "upload3dmodel",
-        "uploadExtraResources",
-        "clear",
-        "",
-        1024,
-        1024
-      ]
-    },
     {
       "id": 18,
       "type": "SegviGenSampler",
       "pos": [
-        -1399.8274465137015,
-        36.253390430161744
+        -1644.8667880306314,
+        1.4718236296005216
       ],
       "size": [
-        390.25,
-        178.11666870117188
+        325.20833333333337,
+        148.43055725097656
       ],
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -210,21 +68,21 @@
       "id": 19,
       "type": "SegviGenVoxelEncoder",
       "pos": [
-        -1861.6189046220024,
-        249.28572370867028
+        -2029.7233095402426,
+        179.01346902840942
       ],
       "size": [
-        341.70001220703125,
-        157.43333435058594
+        284.75001017252606,
+        131.19444529215497
       ],
       "flags": {},
-      "order": 6,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
           "name": "input_3d",
           "type": "*",
-          "link": 42
+          "link": 65
         }
       ],
       "outputs": [
@@ -268,104 +126,18 @@
       "widgets_values": []
     },
     {
-      "id": 21,
-      "type": "Preview3D",
-      "pos": [
-        -1212.6269380855415,
-        424.7986029628146
-      ],
-      "size": [
-        1066.2166748046875,
-        1212.199951171875
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "camera_info",
-          "shape": 7,
-          "type": "LOAD3D_CAMERA",
-          "link": null
-        },
-        {
-          "name": "bg_image",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": null
-        },
-        {
-          "name": "model_file",
-          "type": "STRING,FILE_3D_GLB,FILE_3D_GLTF,FILE_3D_FBX,FILE_3D_OBJ,FILE_3D_STL,FILE_3D_USDZ,FILE_3D",
-          "widget": {
-            "name": "model_file"
-          },
-          "link": 62
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.17.0",
-        "Node name for S&R": "Preview3D",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.7"
-        },
-        "Last Time Model File": "/home/aero/comfy/ComfyUI/output/segvigen/split_00001_parts.glb",
-        "Resource Folder": "aero/comfy/ComfyUI/output/segvigen",
-        "Scene Config": {
-          "showGrid": true,
-          "backgroundColor": "#282828",
-          "backgroundImage": "",
-          "backgroundRenderMode": "tiled"
-        },
-        "Camera Config": {
-          "cameraType": "perspective",
-          "fov": 35,
-          "state": {
-            "position": {
-              "x": 8.26894049792156,
-              "y": 6.430780935490757,
-              "z": -2.05681194177788
-            },
-            "target": {
-              "x": 0,
-              "y": 1.349864708022532,
-              "z": 0
-            },
-            "zoom": 1,
-            "cameraType": "perspective"
-          }
-        },
-        "Light Config": {
-          "intensity": 1
-        },
-        "Model Config": {
-          "upDirection": "original",
-          "materialMode": "original",
-          "showSkeleton": false
-        }
-      },
-      "widgets_values": [
-        "/home/aero/comfy/ComfyUI/output/segvigen/split_00001_parts.glb",
-        ""
-      ]
-    },
-    {
       "id": 24,
       "type": "SegviGenSamplerConfig",
       "pos": [
-        -1629.726954741565,
-        483.83401927091745
+        -1836.448914325024,
+        374.4373673443681
       ],
       "size": [
-        352.3666687011719,
-        241.89999389648438
+        293.63889058430993,
+        201.5833282470703
       ],
       "flags": {},
-      "order": 2,
+      "order": 0,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -391,78 +163,23 @@
         12,
         7.5,
         3,
-        66944287419881,
+        839474194053321,
         "randomize"
-      ]
-    },
-    {
-      "id": 28,
-      "type": "SegviGenStage5Baker",
-      "pos": [
-        -910.0121859112742,
-        53.31985818243197
-      ],
-      "size": [
-        270,
-        183.43333435058594
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "output_tex_slat",
-          "type": "SEG_SLAT",
-          "link": 47
-        },
-        {
-          "name": "subs",
-          "type": "SEG_SUBS",
-          "link": 51
-        },
-        {
-          "name": "original_3d",
-          "type": "*",
-          "link": 52
-        }
-      ],
-      "outputs": [
-        {
-          "name": "glb_path",
-          "type": "STRING",
-          "links": [
-            61
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "ComfyUI-SegviGen",
-        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
-        "Node name for S&R": "SegviGenStage5Baker",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.7"
-        }
-      },
-      "widgets_values": [
-        false,
-        "segvigen/bake"
       ]
     },
     {
       "id": 29,
       "type": "SegviGenRmbg",
       "pos": [
-        -2265.171874445572,
-        116.27340261032623
+        -2366.009669704573,
+        68.15285498198875
       ],
       "size": [
-        368.1166687011719,
-        95.43333435058594
+        306.76389058430993,
+        79.52777862548828
       ],
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -501,15 +218,15 @@
       "id": 30,
       "type": "SegviGenConditioner",
       "pos": [
-        -1842.8258000171418,
-        -29.55567088831299
+        -2014.0363250130863,
+        -53.36395334593553
       ],
       "size": [
-        320.7833251953125,
-        71.43333435058594
+        267.31943766276044,
+        59.52777862548828
       ],
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -540,18 +257,374 @@
       "widgets_values": []
     },
     {
-      "id": 31,
-      "type": "SegviGenSplitter",
+      "id": 21,
+      "type": "Preview3D",
       "pos": [
-        -494.5724157049176,
-        -84.73947107369304
+        -1488.8661901560486,
+        325.226910662159
       ],
       "size": [
-        288.1833190917969,
-        454.1000061035156
+        888.513895670573,
+        1010.1666259765625
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "camera_info",
+          "shape": 7,
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        },
+        {
+          "name": "bg_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "model_file",
+          "type": "STRING,FILE_3D_GLB,FILE_3D_GLTF,FILE_3D_FBX,FILE_3D_OBJ,FILE_3D_STL,FILE_3D_USDZ,FILE_3D",
+          "widget": {
+            "name": "model_file"
+          },
+          "link": 69
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "Preview3D",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "Last Time Model File": "/home/aero/comfy/ComfyUI/output/segvigen/bake_00024_.glb",
+        "Resource Folder": "aero/comfy/ComfyUI/output/segvigen",
+        "Scene Config": {
+          "showGrid": true,
+          "backgroundColor": "#282828",
+          "backgroundImage": "",
+          "backgroundRenderMode": "tiled"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": 8.672216399930537,
+              "y": -0.0029054414814000395,
+              "z": 7.5444389084998775
+            },
+            "target": {
+              "x": 0,
+              "y": 2.5,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 1
+        },
+        "Model Config": {
+          "upDirection": "original",
+          "materialMode": "original",
+          "showSkeleton": false
+        }
+      },
+      "widgets_values": [
+        "/home/aero/comfy/ComfyUI/output/segvigen/bake_00024_.glb",
+        ""
+      ]
+    },
+    {
+      "id": 34,
+      "type": "SegviGenPreSimplification",
+      "pos": [
+        -2351.774360212705,
+        430.00388179461123
+      ],
+      "size": [
+        288.8534912109375,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "input_3d",
+          "type": "*",
+          "link": 68
+        }
+      ],
+      "outputs": [
+        {
+          "name": "simplified_glb_path",
+          "type": "STRING",
+          "links": [
+            65,
+            66
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "019eacf1a1a629eea57f60a56bb6c37d41ad38b1",
+        "Node name for S&R": "SegviGenPreSimplification",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        0.5,
+        "segvigen/simplified"
+      ]
+    },
+    {
+      "id": 33,
+      "type": "Note",
+      "pos": [
+        -2341.3561545806533,
+        224.55417076317866
+      ],
+      "size": [
+        256.3055674235026,
+        91.6249974568685
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "First Run Will be slow as it will download all the required models"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 6,
+      "type": "Load3D",
+      "pos": [
+        -2848.571956763805,
+        555.9717263855251
+      ],
+      "size": [
+        396.34722391764325,
+        631.0833231608074
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "mesh_path",
+          "type": "STRING",
+          "links": [
+            68
+          ]
+        },
+        {
+          "name": "normal",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "camera_info",
+          "type": "LOAD3D_CAMERA",
+          "links": null
+        },
+        {
+          "name": "recording_video",
+          "type": "VIDEO",
+          "links": null
+        },
+        {
+          "name": "model_3d",
+          "type": "FILE_3D",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Resource Folder": "",
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "Load3D",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        },
+        "Camera Config": {
+          "cameraType": "perspective",
+          "fov": 35,
+          "state": {
+            "position": {
+              "x": 6.408604816194694,
+              "y": 10,
+              "z": 6.4086048161946945
+            },
+            "target": {
+              "x": 0,
+              "y": 2.5,
+              "z": 0
+            },
+            "zoom": 1,
+            "cameraType": "perspective"
+          }
+        },
+        "Light Config": {
+          "intensity": 10
+        }
+      },
+      "widgets_values": [
+        "3d/Trellis2MV_00001_.glb",
+        "upload3dmodel",
+        "uploadExtraResources",
+        "clear",
+        "",
+        1024,
+        1024
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "pos": [
+        -2861.7726124211194,
+        47.43503833791786
+      ],
+      "size": [
+        398.00000508626306,
+        428.3194478352865
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            55
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.17.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "Trellis2MV_00001_.png",
+        "image"
+      ]
+    },
+    {
+      "id": 28,
+      "type": "SegviGenStage5Baker",
+      "pos": [
+        -1236.685628853771,
+        15.695281939673862
+      ],
+      "size": [
+        225,
+        152.86111195882162
       ],
       "flags": {},
       "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "output_tex_slat",
+          "type": "SEG_SLAT",
+          "link": 47
+        },
+        {
+          "name": "subs",
+          "type": "SEG_SUBS",
+          "link": 51
+        },
+        {
+          "name": "original_3d",
+          "type": "*",
+          "link": 66
+        }
+      ],
+      "outputs": [
+        {
+          "name": "glb_path",
+          "type": "STRING",
+          "links": [
+            61
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-SegviGen",
+        "ver": "fc4fbb1c23cbbbb1d7fff01bac11c13948696056",
+        "Node name for S&R": "SegviGenStage5Baker",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        true,
+        "segvigen/bake"
+      ]
+    },
+    {
+      "id": 31,
+      "type": "SegviGenSplitter",
+      "pos": [
+        -890.5204981275776,
+        -99.37293334350615
+      ],
+      "size": [
+        240.15276590983075,
+        378.4166717529297
+      ],
+      "flags": {},
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -568,7 +641,7 @@
           "name": "part_glb_path",
           "type": "STRING",
           "links": [
-            62
+            69
           ]
         }
       ],
@@ -601,44 +674,27 @@
       "id": 32,
       "type": "Note",
       "pos": [
-        -907.6357297707303,
-        -132.4878557088394
+        -1234.7190194249965,
+        -139.16202112881356
       ],
       "size": [
-        253.01666259765625,
-        131.01666259765625
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "properties": {},
-      "widgets_values": [
-        "Enable Generate_UV if input mesh does not has an uv map"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
-      "id": 33,
-      "type": "Note",
-      "pos": [
-        -2298.663922898305,
-        269.5802854058358
-      ],
-      "size": [
-        307.5666809082031,
-        109.94999694824219
+        210.84721883138022,
+        109.18055216471355
       ],
       "flags": {},
       "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [],
-      "properties": {},
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.7",
+          "input_ue_unconnectable": {}
+        }
+      },
       "widgets_values": [
-        "First Run Will be slow as it will download all the required models"
+        "Enable Generate_UV if input mesh does not has an uv map\n"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -660,14 +716,6 @@
       18,
       2,
       "SEG_SLAT"
-    ],
-    [
-      42,
-      6,
-      2,
-      19,
-      0,
-      "STRING"
     ],
     [
       44,
@@ -692,14 +740,6 @@
       28,
       1,
       "SEG_SUBS"
-    ],
-    [
-      52,
-      6,
-      6,
-      28,
-      2,
-      "FILE_3D"
     ],
     [
       55,
@@ -734,7 +774,31 @@
       "STRING"
     ],
     [
-      62,
+      65,
+      34,
+      0,
+      19,
+      0,
+      "STRING"
+    ],
+    [
+      66,
+      34,
+      0,
+      28,
+      2,
+      "STRING"
+    ],
+    [
+      68,
+      6,
+      2,
+      34,
+      0,
+      "STRING"
+    ],
+    [
+      69,
       31,
       0,
       21,
@@ -748,13 +812,13 @@
     "ue_links": [],
     "links_added_by_ue": [],
     "ds": {
-      "scale": 0.36745836979786844,
+      "scale": 0.2374965128909951,
       "offset": [
-        3273.901130365234,
-        797.8169629538229
+        3951.776107558607,
+        1769.091755301391
       ]
     },
-    "workflowRendererVersion": "Vue",
+    "workflowRendererVersion": "LG",
     "frontendVersion": "1.41.19",
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
