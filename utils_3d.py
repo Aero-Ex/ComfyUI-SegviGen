@@ -7,6 +7,9 @@ import o_voxel
 from PIL import Image
 import trellis2.modules.sparse as sp
 from trellis2.representations import MeshWithVoxel
+import nvdiffrast.torch as dr
+import flex_gemm
+import cv2
 
 MAX_PREPROCESS_TEX_SIZE = 1024
 EXPORT_TEXTURE_SIZE = 2048
@@ -356,12 +359,90 @@ def bake_to_mesh(glb_path, tex_voxels, output_path, resolution=512, texture_size
         transform, geom_name = asset.graph[node_name]
         geom = asset.geometry[geom_name]
         
+        # Check if we should use existing UVs
         has_uv = hasattr(geom.visual, 'uv') and geom.visual.uv is not None
+        if not generate_uv and has_uv:
+            print(f"[SegviGen] Bake: preserving original UVs for {node_name}...")
+            
+            # 1. Transform local vertices to world space
+            world_vertices = trimesh.transformations.transform_points(geom.vertices, transform)
+            
+            # 2. Normalize world vertices to fit AI unit cube [-0.5, 0.5]
+            norm_vertices = (world_vertices - center) * scale
+            
+            # 3. Preparation for rasterization
+            vertices_torch = torch.from_numpy(norm_vertices).float().to(device)
+            faces_torch = torch.from_numpy(geom.faces).int().to(device)
+            uvs = geom.visual.uv.copy()
+            # V-coordinate is often flipped in GLB vs internal representation
+            uvs[:, 1] = 1 - uvs[:, 1]
+            uvs_torch = torch.from_numpy(uvs).float().to(device)
+            
+            # 4. Rasterize in UV space
+            ctx = dr.RasterizeCudaContext()
+            # nvdiffrast expects clip-space UVs: [u*2-1, v*2-1, 0, 1]
+            uvs_clip = torch.cat([uvs_torch * 2 - 1, torch.zeros_like(uvs_torch[:, :1]), torch.ones_like(uvs_torch[:, :1])], dim=-1).unsqueeze(0)
+            rast, _ = dr.rasterize(ctx, uvs_clip, faces_torch, resolution=[texture_size, texture_size])
+            mask = rast[0, ..., 3] > 0
+            
+            # 5. Interpolate world positions across the UV map
+            pos = dr.interpolate(vertices_torch.unsqueeze(0), rast, faces_torch)[0][0]
+            
+            # 6. Sample voxel attributes at these positions
+            # pbr_attr_layout: {'base_color': slice(0, 3), 'metallic': slice(3, 4), 'roughness': slice(4, 5), 'alpha': slice(5, 6)}
+            attrs = torch.zeros(texture_size, texture_size, attr_volume.shape[-1], device=device)
+            
+            # Use flex_gemm for efficient 3D grid sampling from sparse voxels
+            # flex_gemm expects 4D coords [batch, z, y, x]
+            attr_coords_4d = torch.cat([torch.zeros_like(attr_coords[:, :1]), attr_coords], dim=-1)
+            attrs[mask] = flex_gemm.ops.grid_sample.grid_sample_3d(
+                attr_volume,
+                attr_coords_4d,
+                shape=torch.Size([1, attr_volume.shape[-1], resolution, resolution, resolution]),
+                grid=((pos[mask] + 0.5) * resolution).reshape(1, -1, 3),
+                mode='trilinear',
+            )
+            
+            # 7. Post-process textures (denormalize and inpaint)
+            attrs_np = attrs.cpu().numpy()
+            mask_np = mask.cpu().numpy()
+            
+            def process_tex(data, layout_slice, is_color=True):
+                tex = np.clip(data[..., layout_slice] * 255, 0, 255).astype(np.uint8)
+                # Inpaint to fill gaps/bleeding edges
+                inpaint_mask = (~mask_np).astype(np.uint8)
+                if tex.shape[-1] == 1:
+                    tex = cv2.inpaint(tex, inpaint_mask, 1, cv2.INPAINT_TELEA)[..., None]
+                else:
+                    tex = cv2.inpaint(tex, inpaint_mask, 3, cv2.INPAINT_TELEA)
+                return tex
+
+            base_color = process_tex(attrs_np, pbr_attr_layout['base_color'])
+            metallic = process_tex(attrs_np, pbr_attr_layout['metallic'], is_color=False)
+            roughness = process_tex(attrs_np, pbr_attr_layout['roughness'], is_color=False)
+            alpha = process_tex(attrs_np, pbr_attr_layout['alpha'], is_color=False)
+            
+            # 8. Create PBR Material
+            material = trimesh.visual.material.PBRMaterial(
+                baseColorTexture=Image.fromarray(np.concatenate([base_color, alpha], axis=-1)),
+                metallicRoughnessTexture=Image.fromarray(np.concatenate([np.zeros_like(metallic), roughness, metallic], axis=-1)),
+                metallicFactor=1.0,
+                roughnessFactor=1.0,
+                alphaMode='OPAQUE',
+                doubleSided=True,
+            )
+            
+            # 9. Update the geometry
+            baked_mesh = geom.copy()
+            baked_mesh.visual = trimesh.visual.texture.TextureVisuals(uv=geom.visual.uv, material=material)
+            asset.geometry[geom_name] = baked_mesh
+            continue
+
         if not generate_uv and not has_uv:
-            print(f"[SegviGen] Bake Warning: Skipping {node_name} - No UVs found.")
+            print(f"[SegviGen] Bake Warning: Skipping {node_name} - No UVs found and generate_uv is False.")
             continue
             
-        print(f"[SegviGen] Bake: sampling {node_name}...")
+        print(f"[SegviGen] Bake: sampling {node_name} (generating new UVs)...")
         
         # 1. Transform local vertices to world space
         world_vertices = trimesh.transformations.transform_points(geom.vertices, transform)
