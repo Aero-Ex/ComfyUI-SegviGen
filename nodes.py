@@ -244,14 +244,6 @@ class SegviGenSampler:
             shape_slat_sp, tex_slat_sp, cond_gpu,
             steps=steps, cfg_scale=guidance_scale, seed=seed
         )
-        params = inf.PIPE.pipeline_args['tex_slat_sampler']['params'].copy()
-        params['steps'] = steps
-        params['guidance_strength'] = guidance_scale
-        
-        output_tex_slat = inf.tex_slat_sample_single(
-            gen3dseg, inf.PIPE.sampler, inf.PIPE.pipeline_args, shape_slat_sp, tex_slat_sp, cond_gpu
-        )
-        
         res = {"feats": output_tex_slat.feats.cpu(), "coords": output_tex_slat.coords.cpu()}
         inf.PIPE.unload('gen3dseg', 'tex_slat_flow_model')
         return (res,)
