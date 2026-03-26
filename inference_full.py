@@ -19,7 +19,6 @@ from collections import OrderedDict
 from transformers import Mistral3ForConditionalGeneration
 from trellis2.pipelines.rembg import BiRefNet
 from trellis2.representations import MeshWithVoxel
-from data_toolkit.bpy_render import render_from_transforms
 from trellis2.modules.image_feature_extractor import DinoV3FeatureExtractor
 
 try:
