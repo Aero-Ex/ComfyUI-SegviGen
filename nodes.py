@@ -20,9 +20,19 @@ def resolve_full_path(path):
     
     # Try output, input, and temp directories
     for folder in [folder_paths.get_output_directory(), folder_paths.get_input_directory(), folder_paths.get_temp_directory()]:
+        if folder is None: continue
         full = os.path.abspath(os.path.join(folder, path))
         if os.path.exists(full):
+            # print(f"[SegviGen Res] Found: {full}")
             return full
+    
+    print(f"[SegviGen Res] FAILED to resolve relative path: {path}")
+    print(f"  Checked directories based on folder_paths: output={folder_paths.get_output_directory()}, input={folder_paths.get_input_directory()}, temp={folder_paths.get_temp_directory()}")
+    # Fallback to check relative to this file
+    local_path = os.path.abspath(os.path.join(os.path.dirname(__file__), path))
+    if os.path.exists(local_path):
+        return local_path
+
     return path
 
 # SegviGen Model Loader
@@ -99,7 +109,7 @@ class SegviGenMeshVoxelizer:
             mesh = mesh.get("mesh") or mesh.get("glb_path") or mesh
 
         if isinstance(mesh, str):
-            glb_path = mesh
+            glb_path = resolve_full_path(mesh)
         else:
             glb_path = None
             for attr in ["source", "path", "_path", "full_path", "filename", "abs_path"]:
@@ -310,7 +320,7 @@ class SegviGenMeshBaker:
                 mesh = glb_path
 
         if isinstance(mesh, str):
-            glb_path = mesh
+            glb_path = resolve_full_path(mesh)
         else:
             glb_path = None
             for attr in ["source", "path", "_path", "full_path", "filename", "abs_path"]:

@@ -672,9 +672,24 @@ def bake_to_mesh(glb_path, tex_voxels, output_path, resolution=512, texture_size
         transform, geom_name = asset.graph[node_name]
         geom = asset.geometry[geom_name]
         
-        has_uv = hasattr(geom.visual, 'uv') and geom.visual.uv is not None
+        # Robust UV check
+        has_uv = False
+        if hasattr(geom.visual, 'uv') and geom.visual.uv is not None:
+            has_uv = True
+        elif isinstance(geom.visual, trimesh.visual.color.ColorVisuals):
+            # If it's color visuals, it definitely has no UVs. 
+            # We must generate them or skip.
+            pass
+        elif hasattr(geom, 'texture_visuals') or hasattr(geom.visual, 'material'):
+            # Sometimes UVs are hidden in material or other attributes in some trimesh versions
+            try:
+                geom.visual = geom.visual.to_texture()
+                has_uv = hasattr(geom.visual, 'uv') and geom.visual.uv is not None
+            except Exception:
+                pass
+
         if not generate_uv and not has_uv:
-            print(f"[SegviGen] Bake Warning: Skipping {node_name} - No UVs found.")
+            print(f"[SegviGen] Bake Warning: Skipping {node_name} - No UVs found (Visual type: {type(geom.visual)}).")
             continue
             
         print(f"[SegviGen] Bake: sampling {node_name}...")
