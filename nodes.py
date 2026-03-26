@@ -12,6 +12,19 @@ REMOTE_CHECKPOINTS = {
     "SegviGen/full_seg_w_2d_map.safetensors": ("Aero-Ex/SegviGen", "full_seg_w_2d_map.safetensors"),
 }
 
+def resolve_full_path(path):
+    if not path or not isinstance(path, str):
+        return path
+    if os.path.isabs(path):
+        return path
+    
+    # Try output, input, and temp directories
+    for folder in [folder_paths.get_output_directory(), folder_paths.get_input_directory(), folder_paths.get_temp_directory()]:
+        full = os.path.abspath(os.path.join(folder, path))
+        if os.path.exists(full):
+            return full
+    return path
+
 # SegviGen Model Loader
 class SegviGenModelLoader:
     @classmethod
@@ -278,9 +291,11 @@ class SegviGenMeshBaker:
             }
         }
 
-    RETURN_TYPES = ("GLB_PATH",)
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("GLB_PATH",)
     FUNCTION = "bake"
     CATEGORY = "SegviGen"
+    OUTPUT_NODE = True
 
     def bake(self, mesh, texture_voxels, resolution, texture_size, generate_uv):
         # Extract mesh from various wrappers
@@ -343,9 +358,11 @@ class SegviGenMeshExporter:
             }
         }
 
-    RETURN_TYPES = ("GLB_PATH",)
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("GLB_PATH",)
     FUNCTION = "export_mesh"
     CATEGORY = "SegviGen"
+    OUTPUT_NODE = True
 
     def export_mesh(self, meshes, texture_voxels, resolution):
         glb = inf.slat_to_glb(meshes, texture_voxels, resolution=resolution)
@@ -373,7 +390,7 @@ class SegviGenSplitRefine:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "glb_path": ("GLB_PATH",),
+                "glb_path": ("STRING",),
                 "min_faces_per_part": ("INT", {"default": 50, "min": 1, "max": 1000}),
                 "bake_transforms": ("BOOLEAN", {"default": True}),
                 "color_quant_step": ("INT", {"default": 16, "min": 1, "max": 64}),
@@ -387,11 +404,14 @@ class SegviGenSplitRefine:
             }
         }
 
-    RETURN_TYPES = ("PARTS_GLB_PATH",)
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("PARTS_GLB_PATH",)
     FUNCTION = "split"
     CATEGORY = "SegviGen"
+    OUTPUT_NODE = True
 
     def split(self, glb_path, **kwargs):
+        glb_path = resolve_full_path(glb_path)
         out_parts_glb = os.path.join(folder_paths.get_output_directory(), f"segvigen_parts_{os.urandom(4).hex()}.glb")
         splitter.split_glb_by_texture_palette_rgb(
             in_glb_path=glb_path,
@@ -400,6 +420,30 @@ class SegviGenSplitRefine:
             **kwargs
         )
         return (out_parts_glb,)
+
+# SegviGen Mesh Simplify
+class SegviGenMeshSimplify:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "glb_path": ("STRING",),
+                "target_faces": ("INT", {"default": 100000, "min": 1000, "max": 1000000}),
+                "aggression": ("INT", {"default": 7, "min": 1, "max": 20}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("GLB_PATH",)
+    FUNCTION = "simplify"
+    CATEGORY = "SegviGen"
+    OUTPUT_NODE = True
+
+    def simplify(self, glb_path, target_faces, aggression):
+        glb_path = resolve_full_path(glb_path)
+        out_glb = os.path.join(folder_paths.get_output_directory(), f"segvigen_simplified_{os.urandom(4).hex()}.glb")
+        inf.build_simplified_work_glb(glb_path, out_glb, target_faces=target_faces, aggression=aggression)
+        return (out_glb,)
 
 # SegviGen Monolithic Segmentation
 class SegviGenMonolithicSegmentation:
@@ -417,7 +461,8 @@ class SegviGenMonolithicSegmentation:
             }
         }
 
-    RETURN_TYPES = ("GLB_PATH",)
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("GLB_PATH",)
     FUNCTION = "process"
     CATEGORY = "SegviGen"
 
@@ -430,7 +475,7 @@ class SegviGenMonolithicSegmentation:
 
         # 1. Mesh preparation
         if isinstance(mesh, str):
-            glb_path = mesh
+            glb_path = resolve_full_path(mesh)
         else:
             glb_path = None
             for attr in ["source", "path", "_path", "full_path", "filename", "abs_path"]:
@@ -491,6 +536,7 @@ NODE_CLASS_MAPPINGS = {
     "SegviGenMeshBaker": SegviGenMeshBaker,
     "SegviGenMeshExporter": SegviGenMeshExporter,
     "SegviGenSplitRefine": SegviGenSplitRefine,
+    "SegviGenMeshSimplify": SegviGenMeshSimplify,
     "SegviGenMonolithicSegmentation": SegviGenMonolithicSegmentation,
 }
 
@@ -504,5 +550,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SegviGenMeshBaker": "SegviGen Mesh Baker",
     "SegviGenMeshExporter": "SegviGen Mesh Exporter",
     "SegviGenSplitRefine": "SegviGen Split & Refine",
+    "SegviGenMeshSimplify": "SegviGen Mesh Simplify",
     "SegviGenMonolithicSegmentation": "SegviGen Monolithic Segmentation",
 }
