@@ -6,8 +6,7 @@ venv/
 .venv/
 *.log
 .ipynb_checkpoints/
-models/
-checkpoint/
+/checkpoint/
 *.safetensors
 *.ckpt
 *.pt
