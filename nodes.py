@@ -35,6 +35,62 @@ def resolve_full_path(path):
 
     return path
 
+def extract_glb_path(mesh, temp_prefix="segvigen_tmp"):
+    if isinstance(mesh, list) and len(mesh) > 0:
+        mesh = mesh[0]
+        
+    if isinstance(mesh, dict):
+        # Some nodes might pass a dict with 'mesh' or 'glb_path'
+        mesh = mesh.get("mesh") or mesh.get("glb_path") or mesh
+
+    if isinstance(mesh, str):
+        return resolve_full_path(mesh)
+    
+    # Check for File3D specifically (from comfy_api)
+    if type(mesh).__name__ == "File3D":
+        if hasattr(mesh, "get_source"):
+            source = mesh.get_source()
+            if isinstance(source, str):
+                return resolve_full_path(source)
+        if hasattr(mesh, "save_to"):
+            temp_dir = folder_paths.get_temp_directory()
+            glb_path = os.path.join(temp_dir, f"{temp_prefix}_{os.urandom(4).hex()}.glb")
+            return mesh.save_to(glb_path)
+        if hasattr(mesh, "_source") and isinstance(mesh._source, str):
+            return resolve_full_path(mesh._source)
+
+    # Check for common path attributes
+    for attr in ["source", "path", "_path", "full_path", "filename", "abs_path"]:
+        if hasattr(mesh, attr):
+            val = getattr(mesh, attr)
+            if isinstance(val, str):
+                return resolve_full_path(val)
+    
+    # Check for export method (trimesh)
+    if hasattr(mesh, "export"):
+        temp_dir = folder_paths.get_temp_directory()
+        glb_path = os.path.join(temp_dir, f"{temp_prefix}_{os.urandom(4).hex()}.glb")
+        mesh.export(glb_path)
+        return glb_path
+        
+    # Check for trellis2 internal mesh
+    if type(mesh).__name__ == "Mesh" and hasattr(mesh, "vertices") and hasattr(mesh, "faces"):
+        import trimesh
+        tm = trimesh.Trimesh(vertices=mesh.vertices.cpu().numpy(), faces=mesh.faces.cpu().numpy())
+        temp_dir = folder_paths.get_temp_directory()
+        glb_path = os.path.join(temp_dir, f"{temp_prefix}_trellis_{os.urandom(4).hex()}.glb")
+        tm.export(glb_path)
+        return glb_path
+        
+    # Fallback for File3D if attributes didn't match, try to parse source from repr
+    if type(mesh).__name__ == "File3D":
+        m_repr = str(mesh)
+        if "source='" in m_repr:
+            src = m_repr.split("source='")[1].split("'")[0]
+            return resolve_full_path(src)
+
+    raise ValueError(f"Unsupported mesh type: {type(mesh)}. Available attributes: {dir(mesh)}")
+
 # SegviGen Model Loader
 class SegviGenModelLoader:
     @classmethod
@@ -101,38 +157,7 @@ class SegviGenMeshVoxelizer:
     CATEGORY = "SegviGen"
 
     def voxelize(self, mesh):
-        # mesh can be a path, a trimesh object, or a dict containing either
-        if isinstance(mesh, list) and len(mesh) > 0:
-            mesh = mesh[0]
-            
-        if isinstance(mesh, dict):
-            mesh = mesh.get("mesh") or mesh.get("glb_path") or mesh
-
-        if isinstance(mesh, str):
-            glb_path = resolve_full_path(mesh)
-        else:
-            glb_path = None
-            for attr in ["source", "path", "_path", "full_path", "filename", "abs_path"]:
-                if hasattr(mesh, attr):
-                    val = getattr(mesh, attr)
-                    if isinstance(val, str):
-                        glb_path = val
-                        break
-            
-            if glb_path is None:
-                if hasattr(mesh, "export"):
-                    temp_dir = folder_paths.get_temp_directory()
-                    glb_path = os.path.join(temp_dir, f"segvigen_input_{os.urandom(4).hex()}.glb")
-                    mesh.export(glb_path)
-                elif type(mesh).__name__ == "File3D":
-                    # Fallback for File3D if attributes didn't match, try to parse source from repr
-                    m_repr = str(mesh)
-                    if "source='" in m_repr:
-                        glb_path = m_repr.split("source='")[1].split("'")[0]
-                    else:
-                        raise ValueError(f"Unsupported File3D format: {m_repr}")
-                else:
-                    raise ValueError(f"Unsupported mesh type: {type(mesh)}. Attributes: {dir(mesh)}")
+        glb_path = extract_glb_path(mesh, temp_prefix="segvigen_input")
 
         vxz_path = glb_path.replace(".glb", ".vxz")
         inf.process_glb_to_vxz(glb_path, vxz_path)
@@ -300,43 +325,7 @@ class SegviGenMeshBaker:
     OUTPUT_NODE = True
 
     def bake(self, mesh, texture_voxels, resolution, texture_size, generate_uv):
-        # Extract mesh from various wrappers
-        if isinstance(mesh, list) and len(mesh) > 0:
-            mesh = mesh[0]
-            
-        if isinstance(mesh, dict):
-            glb_path = mesh.get("glb_path") or mesh.get("mesh")
-            if not isinstance(glb_path, str):
-                mesh = glb_path
-            else:
-                mesh = glb_path
-
-        if isinstance(mesh, str):
-            glb_path = resolve_full_path(mesh)
-        else:
-            glb_path = None
-            for attr in ["source", "path", "_path", "full_path", "filename", "abs_path"]:
-                if hasattr(mesh, attr):
-                    val = getattr(mesh, attr)
-                    if isinstance(val, str):
-                        glb_path = val
-                        break
-            
-            if glb_path is None:
-                if hasattr(mesh, "export"):
-                    # If it's a trimesh object without original path, we must save it to bake onto it
-                    temp_dir = folder_paths.get_temp_directory()
-                    glb_path = os.path.join(temp_dir, f"segvigen_bake_src_{os.urandom(4).hex()}.glb")
-                    mesh.export(glb_path)
-                elif type(mesh).__name__ == "Mesh" and hasattr(mesh, "vertices") and hasattr(mesh, "faces"):
-                    # This is a trellis2 internal mesh, convert to trimesh then export
-                    import trimesh
-                    tm = trimesh.Trimesh(vertices=mesh.vertices.cpu().numpy(), faces=mesh.faces.cpu().numpy())
-                    temp_dir = folder_paths.get_temp_directory()
-                    glb_path = os.path.join(temp_dir, f"segvigen_bake_src_trellis_{os.urandom(4).hex()}.glb")
-                    tm.export(glb_path)
-                else:
-                    raise ValueError(f"Unsupported mesh type for baking: {type(mesh)}. Available attributes: {dir(mesh)}")
+        glb_path = extract_glb_path(mesh, temp_prefix="segvigen_bake_src")
         
 
         output_path = os.path.join(folder_paths.get_output_directory(), f"segvigen_baked_{os.urandom(4).hex()}.glb")
@@ -450,6 +439,81 @@ class SegviGenMeshSimplify:
         inf.build_simplified_work_glb(glb_path, out_glb, target_faces=target_faces, aggression=aggression)
         return (out_glb,)
 
+# SegviGen Material Transfer
+class SegviGenMaterialTransfer:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "source_mesh": ("*",),
+                "split_mesh": ("*",),
+                "flip_uv": ("BOOLEAN", {"default": False}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("GLB_PATH",)
+    FUNCTION = "transfer"
+    CATEGORY = "SegviGen"
+    OUTPUT_NODE = True
+
+    def transfer(self, source_mesh, split_mesh, flip_uv):
+        source_path = extract_glb_path(source_mesh, temp_prefix="segvigen_mat_src")
+        split_path = extract_glb_path(split_mesh, temp_prefix="segvigen_mat_split")
+        
+        out_glb = os.path.join(folder_paths.get_output_directory(), f"segvigen_transferred_{os.urandom(4).hex()}.glb")
+        
+        import trimesh
+        # Load geometries
+        source_scene = trimesh.load(source_path, force="scene", process=False)
+        target_scene = trimesh.load(split_path, force="scene", process=False)
+        
+        # Build a mapping of geom_name -> material from the source scene
+        source_mats = {}
+        for node_name in source_scene.graph.nodes_geometry:
+            geom_name = source_scene.graph[node_name][1]
+            geom = source_scene.geometry.get(geom_name)
+            if geom and hasattr(geom.visual, 'material'):
+                source_mats[geom_name] = geom.visual.material
+        
+        # If there's only one source geometry & material, we just use it for everything
+        default_mat = None
+        if len(source_mats) == 1:
+            default_mat = list(source_mats.values())[0]
+            
+        # Apply to target geometries
+        for node_name in target_scene.graph.nodes_geometry:
+            geom_name = target_scene.graph[node_name][1]
+            geom = target_scene.geometry.get(geom_name)
+            if not geom:
+                continue
+                
+            # The split mesh geom_name usually contains the original geom_name
+            mat_to_apply = default_mat
+            
+            # Try to match the exact source geometry name if there are multiple
+            if len(source_mats) > 1:
+                # Sort by length descending to match the most specific name first
+                for src_name in sorted(source_mats.keys(), key=len, reverse=True):
+                    if src_name in geom_name:
+                        mat_to_apply = source_mats[src_name]
+                        break
+            
+            if mat_to_apply is not None:
+                # The split output retains the UVs in geom.visual.uv
+                if hasattr(geom.visual, 'uv') and geom.visual.uv is not None:
+                    uvs = geom.visual.uv.copy()
+                    if flip_uv:
+                        uvs[:, 1] = 1.0 - uvs[:, 1]
+                    geom.visual = trimesh.visual.TextureVisuals(uv=uvs, material=mat_to_apply)
+                else:
+                    geom.visual.material = mat_to_apply
+                    
+        target_scene.export(out_glb)
+        print(f"[SegviGen] MaterialTransfer: Saved to {out_glb}")
+        return (out_glb,)
+
+
 # SegviGen Monolithic Segmentation
 class SegviGenMonolithicSegmentation:
     @classmethod
@@ -472,35 +536,7 @@ class SegviGenMonolithicSegmentation:
     CATEGORY = "SegviGen"
 
     def process(self, mesh, seg_model, bake_mode, generate_uv, image=None):
-        # 0. Robust Mesh Extract
-        if isinstance(mesh, list) and len(mesh) > 0:
-            mesh = mesh[0]
-        if isinstance(mesh, dict):
-            mesh = mesh.get("mesh") or mesh.get("glb_path") or mesh
-
-        # 1. Mesh preparation
-        if isinstance(mesh, str):
-            glb_path = resolve_full_path(mesh)
-        else:
-            glb_path = None
-            for attr in ["source", "path", "_path", "full_path", "filename", "abs_path"]:
-                if hasattr(mesh, attr):
-                    val = getattr(mesh, attr)
-                    if isinstance(val, str):
-                        glb_path = val
-                        break
-            
-            if glb_path is None:
-                if hasattr(mesh, "export"):
-                    temp_dir = folder_paths.get_temp_directory()
-                    glb_path = os.path.join(temp_dir, f"segvigen_mono_{os.urandom(4).hex()}.glb")
-                    mesh.export(glb_path)
-                elif type(mesh).__name__ == "File3D":
-                    m_repr = str(mesh)
-                    if "source='" in m_repr:
-                        glb_path = m_repr.split("source='")[1].split("'")[0]
-                else:
-                    raise ValueError(f"Unsupported mesh type: {type(mesh)}")
+        glb_path = extract_glb_path(mesh, temp_prefix="segvigen_mono")
 
         # 2. Temp files
         workdir = os.path.join(folder_paths.get_temp_directory(), f"seg_mono_{os.urandom(4).hex()}")
@@ -542,6 +578,7 @@ NODE_CLASS_MAPPINGS = {
     "SegviGenMeshExporter": SegviGenMeshExporter,
     "SegviGenSplitRefine": SegviGenSplitRefine,
     "SegviGenMeshSimplify": SegviGenMeshSimplify,
+    "SegviGenMaterialTransfer": SegviGenMaterialTransfer,
     "SegviGenMonolithicSegmentation": SegviGenMonolithicSegmentation,
 }
 
@@ -556,5 +593,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SegviGenMeshExporter": "SegviGen Mesh Exporter",
     "SegviGenSplitRefine": "SegviGen Split & Refine",
     "SegviGenMeshSimplify": "SegviGen Mesh Simplify",
+    "SegviGenMaterialTransfer": "SegviGen Material Transfer",
     "SegviGenMonolithicSegmentation": "SegviGen Monolithic Segmentation",
-}
+    }

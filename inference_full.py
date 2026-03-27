@@ -708,36 +708,134 @@ def bake_to_mesh(glb_path, tex_voxels, output_path, resolution=512, texture_size
         print(f"[Log - Bake Input] {node_name}: Original Bounds={v_orig_min} to {v_orig_max}")
         print(f"[Log - Bake Input] {node_name}: Normalized Bounds={v_norm_min} to {v_norm_max} (Target: [-0.5, 0.5])")
         
-        # Use to_glb with sparse input
-        baked_mesh = o_voxel.postprocess.to_glb(
-            vertices=torch.from_numpy(norm_vertices).float().to(device).contiguous(),
-            faces=torch.from_numpy(geom.faces).int().to(device).contiguous(),
-            attr_volume=attr_volume,
-            coords=attr_coords, 
-            attr_layout=pbr_attr_layout,
-            aabb=aabb,
-            voxel_size=1.0 / resolution,
-            texture_size=texture_size,
-            remesh=False, 
-            verbose=False
-        )
-        
-        if isinstance(baked_mesh, trimesh.Scene):
-            baked_mesh = list(baked_mesh.geometry.values())[0]
+        if not generate_uv and has_uv:
+            # --- UV Preservation Mode: Exact replication of to_glb sampling ---
+            # Key steps copied from o_voxel/postprocess.py to_glb():
+            # 1. Rasterize in UV space (NO V-flip - to_glb has none)
+            # 2. Interpolate 3D positions
+            # 3. BVH-snap positions onto original mesh surface
+            # 4. Sample voxel attributes using proper aabb/voxel_size
+            print(f"[SegviGen] Bake: Preserving original UVs for {node_name}...")
+            
+            verts = torch.from_numpy(norm_vertices).float().cuda()
+            faces_t = torch.from_numpy(geom.faces).int().cuda()
+            uvs = torch.from_numpy(geom.visual.uv).float().cuda()
 
-        # 1. Reverse the axis swap/invert from to_glb (Y->Z, Z->-Y)
-        # Internal to_glb: v[:, 1], v[:, 2] = v[:, 2], -v[:, 1]
-        y_glb = baked_mesh.vertices[:, 1].copy()
-        z_glb = baked_mesh.vertices[:, 2].copy()
-        baked_mesh.vertices[:, 1] = -z_glb # restore original Y
-        baked_mesh.vertices[:, 2] = y_glb  # restore original Z
+            # Compute per-axis voxel_size from aabb and actual grid dims
+            aabb_t = torch.tensor(aabb, dtype=torch.float32, device=device)
+            grid_size_t = torch.tensor([resolution, resolution, resolution], dtype=torch.float32, device=device)
+            voxel_size_t = (aabb_t[1] - aabb_t[0]) / grid_size_t  # (3,)
 
-        # 2. Denormalize output vertices to match original GLB coordinates (Back to World Space)
-        world_baked_vertices = (baked_mesh.vertices / scale) + center
-        
-        # 3. Transform back to LOCAL space for replacement in the original node
-        inv_transform = np.linalg.inv(transform)
-        baked_mesh.vertices = trimesh.transformations.transform_points(world_baked_vertices, inv_transform)
+            # Build BVH for snapping (same as to_glb: uses original normalized vertices)
+            # cumesh may or may not be importable in this context - try lazily
+            try:
+                import cumesh as _cumesh
+                bvh = _cumesh.cuBVH(verts, faces_t)
+                bvh_ok = True
+            except Exception:
+                bvh_ok = False
+
+            # Setup rasterizer
+            ctx = nr.RasterizeCudaContext()
+            # NO V-flip — matching to_glb line 254: "out_uvs * 2 - 1"
+            uvs_rast = torch.cat([uvs * 2 - 1, torch.zeros_like(uvs[:, :1]), torch.ones_like(uvs[:, :1])], dim=-1).unsqueeze(0)
+            rast = torch.zeros((1, texture_size, texture_size, 4), device='cuda', dtype=torch.float32)
+            
+            # Rasterize in chunks (to_glb does the same +i trick for accumulation)
+            for i in range(0, faces_t.shape[0], 100000):
+                rast_chunk, _ = nr.rasterize(ctx, uvs_rast, faces_t[i:i+100000], resolution=[texture_size, texture_size])
+                mask_chunk = rast_chunk[..., 3:4] > 0
+                rast_chunk[..., 3:4] += i
+                rast = torch.where(mask_chunk, rast_chunk, rast)
+
+            mask = rast[0, ..., 3] > 0
+
+            # Interpolate 3D positions in UV space (produces approx positions)
+            pos = nr.interpolate(verts.unsqueeze(0), rast, faces_t)[0][0]
+            valid_pos = pos[mask]
+
+            # BVH snap: project valid_pos exactly onto original mesh surface
+            # This is the critical step from to_glb line 276-278!
+            if bvh_ok:
+                try:
+                    _, face_id, uvw = bvh.unsigned_distance(valid_pos, return_uvw=True)
+                    orig_tri_verts = verts[faces_t[face_id.long()]]  # (N, 3, 3)
+                    valid_pos = (orig_tri_verts * uvw.unsqueeze(-1)).sum(dim=1)
+                except Exception as e:
+                    print(f"[SegviGen] Bake: BVH snap failed ({e}), using raw rasterized positions")
+
+            # Sample attribute volume: grid = (pos - aabb[0]) / voxel_size (index space)
+            sampled_attrs = torch.zeros(texture_size, texture_size, attr_volume.shape[1], device='cuda')
+            sampled_attrs[mask] = grid_sample_3d(
+                attr_volume,
+                torch.cat([torch.zeros_like(attr_coords[:, :1]), attr_coords], dim=-1),
+                shape=torch.Size([1, attr_volume.shape[1], resolution, resolution, resolution]),
+                grid=((valid_pos - aabb_t[0]) / voxel_size_t).reshape(1, -1, 3),
+                mode='trilinear',
+            )
+
+            # Construct material (matching to_glb lines 302-325)
+            import cv2
+            mask_np = mask.cpu().numpy()
+            mask_inv = (~mask_np).astype(np.uint8)
+            base_color = np.clip(sampled_attrs[..., pbr_attr_layout['base_color']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
+            metallic = np.clip(sampled_attrs[..., pbr_attr_layout['metallic']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
+            roughness = np.clip(sampled_attrs[..., pbr_attr_layout['roughness']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
+            alpha = np.clip(sampled_attrs[..., pbr_attr_layout['alpha']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
+            base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_TELEA)
+            metallic = cv2.inpaint(metallic, mask_inv, 1, cv2.INPAINT_TELEA)[..., None]
+            roughness = cv2.inpaint(roughness, mask_inv, 1, cv2.INPAINT_TELEA)[..., None]
+            alpha = cv2.inpaint(alpha, mask_inv, 1, cv2.INPAINT_TELEA)[..., None]
+
+            material = trimesh.visual.material.PBRMaterial(
+                baseColorTexture=Image.fromarray(np.concatenate([base_color, alpha], axis=-1)),
+                baseColorFactor=np.array([255, 255, 255, 255], dtype=np.uint8),
+                metallicRoughnessTexture=Image.fromarray(np.concatenate([np.zeros_like(metallic), roughness, metallic], axis=-1)),
+                metallicFactor=1.0,
+                roughnessFactor=1.0,
+                doubleSided=True,
+            )
+
+            # Flip UV V for the saved mesh (to_glb does uvs_np[:, 1] = 1 - uvs_np[:, 1])
+            original_uv = geom.visual.uv.copy()
+            flipped_uv = original_uv.copy()
+            flipped_uv[:, 1] = 1 - flipped_uv[:, 1]
+            geom.visual = trimesh.visual.TextureVisuals(uv=flipped_uv, material=material)
+            baked_mesh = geom
+            world_baked_vertices = world_vertices
+
+        else:
+            # --- Standard Pipeline (to_glb with new UVs) ---
+            # Use to_glb with sparse input
+            baked_mesh = o_voxel.postprocess.to_glb(
+                vertices=torch.from_numpy(norm_vertices).float().to(device).contiguous(),
+                faces=torch.from_numpy(geom.faces).int().to(device).contiguous(),
+                attr_volume=attr_volume,
+                coords=attr_coords, 
+                attr_layout=pbr_attr_layout,
+                aabb=aabb,
+                voxel_size=1.0 / resolution,
+                texture_size=texture_size,
+                remesh=False, 
+                verbose=False
+            )
+            
+            if isinstance(baked_mesh, trimesh.Scene):
+                baked_mesh = list(baked_mesh.geometry.values())[0]
+
+            # 1. Reverse the axis swap/invert from to_glb (Y->Z, Z->-Y)
+            # Internal to_glb: v[:, 1], v[:, 2] = v[:, 2], -v[:, 1]
+            y_glb = baked_mesh.vertices[:, 1].copy()
+            z_glb = baked_mesh.vertices[:, 2].copy()
+            baked_mesh.vertices[:, 1] = -z_glb # restore original Y
+            baked_mesh.vertices[:, 2] = y_glb  # restore original Z
+
+            # 2. Denormalize output vertices to match original GLB coordinates (Back to World Space)
+            world_baked_vertices = (baked_mesh.vertices / scale) + center
+            
+            # 3. Transform back to LOCAL space for replacement in the original node
+            inv_transform = np.linalg.inv(transform)
+            baked_mesh.vertices = trimesh.transformations.transform_points(world_baked_vertices, inv_transform)
 
         # [Comparison: AI Voxel vs Mesh Vertex]
         print(f"[Comparison] Picking 3 sample vertices from {node_name} to verify alignment:")
