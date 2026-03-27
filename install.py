@@ -41,7 +41,7 @@ def get_env_info():
         info['torch'] = f"torch{torch_ver[0]}{torch_ver[1]}"
         info['torch_raw'] = torch_raw
         
-        if torch.version.cuda:
+        if hasattr(torch.version, 'cuda') and torch.version.cuda:
             cuda_ver = torch.version.cuda.split('.')
             info['cuda'] = f"cu{cuda_ver[0]}{cuda_ver[1]}"
         else:
@@ -59,9 +59,6 @@ def show_recommendations():
     print("If you encounter 404 errors, it is likely because your environment")
     print("combination is not yet supported on the wheel repository.")
     print("\nPreferred configurations:")
-    print("1. CUDA 12.4 + PyTorch 2.5 (Most compatible)")
-    print("2. CUDA 12.6 + PyTorch 2.6 (Latest compatible)")
-    print("3. CUDA 12.1 + PyTorch 2.4 (Legacy compatible)")
     print("\nYou can install the preferred Torch version using:")
     print("pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124")
     print("="*50 + "\n")
@@ -80,22 +77,86 @@ def find_wheel_url(lib_name, env):
         print(f"  Warning: Could not access {lib_name} wheel index: {e}")
         return None
 
-    cuda = env['cuda']
-    torch_tag = env['torch']
-    python_tag = env['python']
+    # Find all wheel links
+    links = re.findall(r'https?://[^\s<>"]+\.whl', html)
+    if not links:
+        return None
+        
+    target_py = env['python']
+    target_plat = "win_amd64" if platform.system() == "Windows" else "manylinux"
+    target_cuda = env['cuda'] # 'cu128' or 'cu130'
+    target_torch = env['torch'] # 'torch28' or 'torch210'
     
-    torch_base = torch_tag[:5] # 'torch'
-    torch_ver = torch_tag[5:] # '210'
+    best_url = None
+    best_score = -1
     
-    v_major = torch_ver[0]
-    v_minor = torch_ver[1:]
-    
-    lib_name_fixed = lib_name.replace("-", "_")
-    pattern = rf'https://github\.com/[^"\s]+{lib_name_fixed}-[^"\s]+(?:\+|%2B){cuda}{torch_base}{v_major}\.?{v_minor}-{python_tag}-{python_tag}-[^"\s]+\.whl'
-    
-    matches = re.findall(pattern, html)
-    if matches:
-        return matches[0]
+    for url in links:
+        filename = url.split('/')[-1]
+        
+        # 1. Platform & Python MUST match
+        if target_plat not in filename:
+            continue
+        if target_py not in filename:
+            continue
+            
+        # Parse CUDA and Torch from filename
+        # Example: flash_attn-2.8.3+cu124torch2.4-cp312-cp312-win_amd64.whl
+        cuda_match = re.search(r'cu(\d+)', filename)
+        torch_match = re.search(r'torch(\d+\.?\d*)', filename)
+        
+        if not cuda_match or not torch_match:
+            continue
+            
+        file_cuda = f"cu{cuda_match.group(1)}"
+        raw_torch_ver = torch_match.group(1)
+        # Handle cases where torch version might or might not have dots
+        file_torch = raw_torch_ver.replace(".", "") # '24' or '210'
+        file_torch_str = f"torch{file_torch}"
+        
+        # Score calculation
+        score = 0
+        
+        # 1. CUDA Major Compatibility
+        if file_cuda[:4] == target_cuda[:4]:
+            score += 1000 # Same major version
+        elif target_cuda.startswith('cu13') and file_cuda.startswith('cu12'):
+            score += 100 # CUDA 13 -> 12 fallback
+        else:
+            continue # Major mismatch
+            
+        # 2. Torch Major Compatibility
+        if not file_torch or len(target_torch) < 6:
+            continue
+        if target_torch.startswith(f"torch{file_torch[0]}"):
+            score += 1000
+        else:
+            continue # Torch major mismatch
+        
+        # 3. Exact Version Bonuses
+        if file_cuda == target_cuda:
+            score += 5000 # Massive bonus for perfect CUDA
+        else:
+            # Low-priority tie-breaker: prefer higher versions within the same major
+            try:
+                score += int(file_cuda[2:])
+            except: pass
+            
+        if file_torch_str == target_torch:
+            score += 10000 # Massive bonus for perfect Torch
+        else:
+             # Prefer closest torch version
+             try:
+                 diff = abs(int(file_torch) - int(target_torch[5:]))
+                 score += (500 - min(diff * 10, 500))
+             except: pass
+             
+        if score > best_score:
+            best_score = score
+            best_url = url
+            
+    if best_url:
+        print(f"  Selected best matching wheel: {best_url.split('/')[-1]} (Score: {best_score})")
+        return best_url
 
     return None
 
@@ -112,6 +173,9 @@ def install_flash_attn(pip_base, env, dry_run=False):
             return run_command(pip_base + ["install", wheel_url])
     else:
         print(f"  Warning: No matching flash-attn wheel found for {env['cuda']}, {env['torch']}, {env['python']} on {env['platform']}.")
+        if platform.system() == "Windows":
+             print("  Skipping flash-attn on Windows as it is often incompatible and optional for inference.")
+             return True
         return False
 
 def install_triton_windows(pip_base, env, dry_run=False):
@@ -213,7 +277,22 @@ def install():
                     print(f"Warning: Failed to install {pkg['name']}.")
                     errors_occurred = True
         else:
-            print(f"  Warning: No matching {pkg['name']} wheel found in the index.")
+            print(f"  Warning: No matching {pkg['name']} wheel found in the index for {env['platform']}.")
+            # Try git fallbacks for known libraries on Windows
+            git_fallbacks = {
+                "nvdiffrast": "git+https://github.com/NVlabs/nvdiffrast",
+                "flex_gemm": "git+https://github.com/NVlabs/flex-gemm",
+                "flex-gemm": "git+https://github.com/NVlabs/flex-gemm"
+            }
+            if pkg['name'] in git_fallbacks:
+                target = git_fallbacks[pkg['name']]
+                print(f"  Attempting source installation for {pkg['name']} as fallback: {target}")
+                if args.dry_run:
+                    print(f"  [Dry Run] Would run: {' '.join(pip_base + ['install', target])}")
+                elif run_command(pip_base + ["install", target]):
+                    print(f"  Successfully installed {pkg['name']} from source.")
+                    continue
+            
             errors_occurred = True
 
     if errors_occurred:

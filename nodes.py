@@ -328,12 +328,15 @@ class SegviGenMeshBaker:
                     temp_dir = folder_paths.get_temp_directory()
                     glb_path = os.path.join(temp_dir, f"segvigen_bake_src_{os.urandom(4).hex()}.glb")
                     mesh.export(glb_path)
-                elif type(mesh).__name__ == "File3D":
-                    m_repr = str(mesh)
-                    if "source='" in m_repr:
-                        glb_path = m_repr.split("source='")[1].split("'")[0]
+                elif type(mesh).__name__ == "Mesh" and hasattr(mesh, "vertices") and hasattr(mesh, "faces"):
+                    # This is a trellis2 internal mesh, convert to trimesh then export
+                    import trimesh
+                    tm = trimesh.Trimesh(vertices=mesh.vertices.cpu().numpy(), faces=mesh.faces.cpu().numpy())
+                    temp_dir = folder_paths.get_temp_directory()
+                    glb_path = os.path.join(temp_dir, f"segvigen_bake_src_trellis_{os.urandom(4).hex()}.glb")
+                    tm.export(glb_path)
                 else:
-                    raise ValueError(f"Unsupported mesh type for baking: {type(mesh)}")
+                    raise ValueError(f"Unsupported mesh type for baking: {type(mesh)}. Available attributes: {dir(mesh)}")
         
 
         output_path = os.path.join(folder_paths.get_output_directory(), f"segvigen_baked_{os.urandom(4).hex()}.glb")
