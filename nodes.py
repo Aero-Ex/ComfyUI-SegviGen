@@ -7,6 +7,23 @@ import folder_paths
 from . import inference_full as inf
 from . import split as splitter
 
+# --- Native Trellis2 Integration Setup ---
+import sys
+import os
+
+# Ensure Trellis2 is in the path for subclassing
+# This must happen before defining SegviGenTrellis2Pipeline
+custom_nodes = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+trellis2_dir = os.path.join(custom_nodes, "ComfyUI-Trellis2-GGUF")
+if trellis2_dir not in sys.path:
+    sys.path.append(trellis2_dir)
+
+try:
+    from trellis2_gguf.pipelines.trellis2_image_to_3d import Trellis2ImageTo3DPipeline
+except ImportError:
+    print("[SegviGen] Warning: ComfyUI-Trellis2-GGUF not found. Native loader will not work.")
+    Trellis2ImageTo3DPipeline = object
+
 REMOTE_CHECKPOINTS = {
     "SegviGen/full_seg.safetensors": ("Aero-Ex/SegviGen", "full_seg.safetensors"),
     "SegviGen/full_seg_w_2d_map.safetensors": ("Aero-Ex/SegviGen", "full_seg_w_2d_map.safetensors"),
@@ -138,9 +155,144 @@ class SegviGenModelLoader:
             else:
                 raise FileNotFoundError(f"Checkpoint {ckpt_name} not found and no remote mapping exists.")
 
-        inf.PIPE.load_all_models()
         inf.PIPE.load_ckpt_if_needed(ckpt_path)
         return ({"ckpt_path": ckpt_path},)
+
+# --- Native Trellis2 Integration ---
+
+class SegviGenTrellis2Pipeline(Trellis2ImageTo3DPipeline):
+    """
+    Subclass of Trellis2ImageTo3DPipeline to support SegviGen weights and output mapping.
+    """
+    def __init__(self, *args, segvigen_ckpt=None, **kwargs):
+        # We handle initialization via from_pretrained usually
+        super().__init__(*args, **kwargs)
+        self.segvigen_ckpt = segvigen_ckpt
+
+    def _apply_segvigen_weights(self, model, ckpt_path):
+        from safetensors.torch import load_file
+        from collections import OrderedDict
+        print(f"[SegviGen] Loading weights from: {ckpt_path}")
+        state_dict = load_file(ckpt_path)
+        # SegviGen weights have "gen3dseg." prefix for internal models
+        # Also handle potential "flow_model." and "tex_slat_flow_model." prefixes
+        mapped_sd = OrderedDict()
+        for k, v in state_dict.items():
+            new_k = k
+            # Strip multiple layers of potential prefixes
+            for prefix in ["gen3dseg.", "tex_slat_flow_model.", "flow_model.", "tex_slat_decoder."]:
+                if new_k.startswith(prefix):
+                    new_k = new_k[len(prefix):]
+            mapped_sd[new_k] = v
+            
+        res = model.load_state_dict(mapped_sd, strict=False)
+        matched = len(mapped_sd) - len(res.unexpected_keys)
+        
+        # Only log if we actually matched something
+        if matched > 0:
+            print(f"[SegviGen] Weights applied to {model.__class__.__name__}: {matched} keys matched.")
+            if res.missing_keys:
+                print(f"[SegviGen] Note: {len(res.missing_keys)} missing keys (standard for partial load)")
+            if res.unexpected_keys:
+                 print(f"[SegviGen] Note: {len(res.unexpected_keys)} unexpected keys found in checkpoint")
+
+    def load_tex_slat_flow_model_1024(self):
+        super().load_tex_slat_flow_model_1024()
+        if self.segvigen_ckpt:
+            self._apply_segvigen_weights(self.models['tex_slat_flow_model_1024'], self.segvigen_ckpt)
+
+    def load_tex_slat_flow_model_512(self):
+        super().load_tex_slat_flow_model_512()
+        if self.segvigen_ckpt:
+            self._apply_segvigen_weights(self.models['tex_slat_flow_model_512'], self.segvigen_ckpt)
+
+    def load_tex_slat_decoder(self):
+        super().load_tex_slat_decoder()
+        if self.segvigen_ckpt:
+            self._apply_segvigen_weights(self.models['tex_slat_decoder'], self.segvigen_ckpt)
+
+    def postprocess_mesh(self, mesh, pbr_voxel, *args, **kwargs):
+        # Handle SegviGen's 3-channel output for Trellis2 compatibility
+        target_voxel = pbr_voxel[0] if isinstance(pbr_voxel, (list, tuple)) else pbr_voxel
+        
+        if hasattr(target_voxel, 'feats') and target_voxel.feats.shape[1] == 3:
+            print(f"[SegviGen] Adapting 3-channel labels ({target_voxel.feats.shape[0]} voxels) to 6-channel PBR for Trellis2")
+            device = target_voxel.feats.device
+            dummy_metallic = torch.zeros(target_voxel.feats.shape[0], 1, device=device)
+            dummy_roughness = torch.ones(target_voxel.feats.shape[0], 1, device=device) * 0.5
+            dummy_alpha = torch.ones(target_voxel.feats.shape[0], 1, device=device)
+            
+            new_feats = torch.cat([target_voxel.feats, dummy_metallic, dummy_roughness, dummy_alpha], dim=1)
+            
+            new_voxel = target_voxel.__class__(new_feats, target_voxel.coords, target_voxel.spatial_shape)
+            if isinstance(pbr_voxel, list):
+                pbr_voxel[0] = new_voxel
+            else:
+                pbr_voxel = new_voxel
+            
+        return super().postprocess_mesh(mesh, pbr_voxel, *args, **kwargs)
+
+class Trellis2_SegviGenLoadModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        ckpts = folder_paths.get_filename_list("checkpoints")
+        for remote_name in REMOTE_CHECKPOINTS.keys():
+            if remote_name not in ckpts:
+                ckpts.append(remote_name)
+        return {
+            "required": {
+                "ckpt_name": (ckpts, {"default": "SegviGen/full_seg_w_2d_map.safetensors"}),
+                "backend": (["flash_attn", "xformers", "sdpa", "flash_attn_3"], {"default": "xformers"}),
+                "device": (["cpu","cuda"],{"default":"cuda"}),
+                "low_vram": ("BOOLEAN",{"default":True}),
+                "keep_models_loaded": ("BOOLEAN", {"default":True}),
+            }
+        }
+
+    RETURN_TYPES = ("TRELLIS2PIPELINE", )
+    RETURN_NAMES = ("pipeline", )
+    FUNCTION = "process"
+    CATEGORY = "Trellis2Wrapper (GGUF)"
+    OUTPUT_NODE = True
+
+    def process(self, ckpt_name, backend, device, low_vram, keep_models_loaded):
+        import sys
+        import os
+        
+        # 1. Resolve SegviGen Checkpoint
+        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        if ckpt_path is None or not os.path.exists(ckpt_path):
+             if ckpt_name in REMOTE_CHECKPOINTS:
+                repo_id, filename = REMOTE_CHECKPOINTS[ckpt_name]
+                base_ckpt_dir = folder_paths.get_folder_paths("checkpoints")[0]
+                target_path = os.path.join(base_ckpt_dir, ckpt_name if "/" in ckpt_name else os.path.join("SegviGen", ckpt_name))
+                if not os.path.exists(target_path):
+                    from huggingface_hub import hf_hub_download
+                    print(f"[SegviGen] Downloading: {ckpt_name}")
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    hf_hub_download(repo_id=repo_id, filename=filename, local_dir=os.path.dirname(target_path))
+                ckpt_path = target_path
+        
+        # 2. Instantiate SegviGen pipeline
+        try:
+            from trellis2_gguf_model_manager import get_models_dir
+            model_path = get_models_dir()
+        except ImportError:
+             model_path = os.path.join(folder_paths.models_dir, "Trellis2")
+        
+        # Instantiate correctly as SegviGenTrellis2Pipeline
+        pipeline = SegviGenTrellis2Pipeline.from_pretrained(
+            model_path,
+            keep_models_loaded=keep_models_loaded,
+            enable_gguf=False,
+            precision="bf16",
+        )
+        pipeline.segvigen_ckpt = ckpt_path
+        pipeline.low_vram = low_vram
+        if device == "cuda":
+            pipeline.to(device)
+            
+        return (pipeline,)
 
 # SegviGen Mesh Voxelizer
 class SegviGenMeshVoxelizer:
@@ -580,6 +732,7 @@ NODE_CLASS_MAPPINGS = {
     "SegviGenMeshSimplify": SegviGenMeshSimplify,
     "SegviGenMaterialTransfer": SegviGenMaterialTransfer,
     "SegviGenMonolithicSegmentation": SegviGenMonolithicSegmentation,
+    "Trellis2_SegviGenLoadModel": Trellis2_SegviGenLoadModel,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -595,4 +748,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SegviGenMeshSimplify": "SegviGen Mesh Simplify",
     "SegviGenMaterialTransfer": "SegviGen Material Transfer",
     "SegviGenMonolithicSegmentation": "SegviGen Monolithic Segmentation",
-    }
+    "Trellis2_SegviGenLoadModel": "Trellis2 - Load SegviGen Model",
+}

@@ -15,3 +15,7 @@ venv/
 output.vxz
 temp/
 tmp/
+inference_compare.py
+inference_one.py
+nodesbk.py
+inference_fullbk.py
