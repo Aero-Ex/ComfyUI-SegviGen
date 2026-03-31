@@ -1076,7 +1076,7 @@ class _LoadedPipeline:
         if self.image_cond_model is None:
             print(f"[OnDemand] Loading DinoV3 conditioners")
             # repo Aero-Ex/Dinov3 has subfolder facebook/dinov3-vitl16-pretrain-lvd1689m
-            base_dir = os.path.join(COMFY_MODELS_DIR, "facebook", "dinov3-vitl16-pretrain-lvd1689m")
+            base_dir = COMFY_MODELS_DIR
             sub = "facebook/dinov3-vitl16-pretrain-lvd1689m"
             self._download_if_missing(DINO_PATH, base_dir, subfolder=sub)
             
