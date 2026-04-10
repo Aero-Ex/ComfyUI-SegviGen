@@ -30,6 +30,7 @@ class FlexiDualGridVaeEncoder(SparseUnetVaeEncoder):
         down_block_type: List[str],
         block_args: List[Dict[str, Any]],
         use_fp16: bool = False,
+        **kwargs,
     ):
         super().__init__(
             6,
